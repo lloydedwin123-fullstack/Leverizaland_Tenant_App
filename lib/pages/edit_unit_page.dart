@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
 
 class EditUnitPage extends StatefulWidget {
   final Map<String, dynamic> unit;
@@ -18,7 +17,6 @@ class _EditUnitPageState extends State<EditUnitPage> {
   late TextEditingController _buildingCtrl;
   late TextEditingController _unitNumberCtrl;
   late TextEditingController _rentCtrl;
-  late TextEditingController _rentalStartCtrl;
   late TextEditingController _waterMeterCtrl;
   late TextEditingController _electricMeterCtrl;
   late TextEditingController _waterAccountCtrl;
@@ -32,14 +30,15 @@ class _EditUnitPageState extends State<EditUnitPage> {
     final u = widget.unit;
     _buildingCtrl = TextEditingController(text: u['building'] ?? '');
     _unitNumberCtrl = TextEditingController(text: u['unit_number'] ?? '');
-    _rentCtrl = TextEditingController(
-        text: u['current_rent_amount']?.toString() ?? '');
-    _rentalStartCtrl = TextEditingController(
-        text: u['rental_start_date'] ?? '');
+    _rentCtrl =
+        TextEditingController(text: u['current_rent_amount']?.toString() ?? '');
     _waterMeterCtrl = TextEditingController(text: u['water_meter_no'] ?? '');
-    _electricMeterCtrl = TextEditingController(text: u['electric_meter_no'] ?? '');
-    _waterAccountCtrl = TextEditingController(text: u['water_account_no'] ?? '');
-    _electricAccountCtrl = TextEditingController(text: u['electric_account_no'] ?? '');
+    _electricMeterCtrl =
+        TextEditingController(text: u['electric_meter_no'] ?? '');
+    _waterAccountCtrl =
+        TextEditingController(text: u['water_account_no'] ?? '');
+    _electricAccountCtrl =
+        TextEditingController(text: u['electric_account_no'] ?? '');
   }
 
   Future<void> _saveChanges() async {
@@ -52,9 +51,6 @@ class _EditUnitPageState extends State<EditUnitPage> {
         'building': _buildingCtrl.text.trim(),
         'unit_number': _unitNumberCtrl.text.trim(),
         'current_rent_amount': double.tryParse(_rentCtrl.text) ?? 0,
-        'rental_start_date': _rentalStartCtrl.text.isNotEmpty
-            ? _rentalStartCtrl.text
-            : null,
         'water_meter_no': _waterMeterCtrl.text.trim(),
         'electric_meter_no': _electricMeterCtrl.text.trim(),
         'water_account_no': _waterAccountCtrl.text.trim(),
@@ -63,10 +59,12 @@ class _EditUnitPageState extends State<EditUnitPage> {
       }).eq('id', widget.unit['id']);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Unit updated successfully.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unit updated successfully.')),
+      );
       Navigator.pop(context, true);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error updating unit: $e')));
     } finally {
@@ -79,7 +77,6 @@ class _EditUnitPageState extends State<EditUnitPage> {
     _buildingCtrl.dispose();
     _unitNumberCtrl.dispose();
     _rentCtrl.dispose();
-    _rentalStartCtrl.dispose();
     _waterMeterCtrl.dispose();
     _electricMeterCtrl.dispose();
     _waterAccountCtrl.dispose();
@@ -109,14 +106,17 @@ class _EditUnitPageState extends State<EditUnitPage> {
             children: [
               _buildField('Building', _buildingCtrl),
               _buildField('Unit Number', _unitNumberCtrl),
-              _buildField('Rent Amount (₱)', _rentCtrl, keyboardType: TextInputType.number),
-              _buildField('Rental Start Date (YYYY-MM-DD)', _rentalStartCtrl),
+              _buildField('Rent Amount (₱)', _rentCtrl,
+                  keyboardType: TextInputType.number),
               const SizedBox(height: 10),
               const Divider(),
-              _buildField('Water Meter #', _waterMeterCtrl),
-              _buildField('Electric Meter #', _electricMeterCtrl),
+
+              // ✅ Correct order
               _buildField('Water Account #', _waterAccountCtrl),
+              _buildField('Water Meter #', _waterMeterCtrl),
               _buildField('Electric Account #', _electricAccountCtrl),
+              _buildField('Electric Meter #', _electricMeterCtrl),
+
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 icon: const Icon(Icons.save),
@@ -150,7 +150,6 @@ class _EditUnitPageState extends State<EditUnitPage> {
           }
           return null;
         },
-
       ),
     );
   }

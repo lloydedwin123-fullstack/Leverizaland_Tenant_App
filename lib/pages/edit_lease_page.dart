@@ -67,7 +67,7 @@ class _EditLeasePageState extends State<EditLeasePage> {
     setState(() => isSaving = true);
 
     try {
-      await supabase.from('leases').update({
+      final Map<String, dynamic> updateData = {
         'start_date': _startDateCtrl.text.isNotEmpty ? _startDateCtrl.text : null,
         'end_date': _endDateCtrl.text.isNotEmpty ? _endDateCtrl.text : null,
         'rent_amount': double.tryParse(_rentCtrl.text) ?? 0,
@@ -77,14 +77,35 @@ class _EditLeasePageState extends State<EditLeasePage> {
             ? _advanceEffectivityCtrl.text
             : null,
         'escalation_rate': double.tryParse(_escalationRateCtrl.text) ?? 0,
-        'escalation_period_years': int.tryParse(_escalationPeriodCtrl.text) ?? 1,
         'notes': _notesCtrl.text.trim(),
         'status': _statusCtrl.text.trim(),
-      }).eq('id', widget.lease['id']);
+      };
+
+      // ✅ Handle escalation_period_years safely
+      final oldValue = widget.lease['escalation_period_years'];
+      final newValueText = _escalationPeriodCtrl.text.trim();
+
+      if (newValueText.isEmpty) {
+        // If the user left it empty
+        if (oldValue != null) {
+          // User cleared the previous value
+          updateData['escalation_period_years'] = null;
+        }
+        // else: old value was null → untouched → don’t include key (keeps it null)
+      } else {
+        // User entered something new → save it
+        final parsedValue = int.tryParse(newValueText);
+        if (parsedValue != oldValue) {
+          updateData['escalation_period_years'] = parsedValue;
+        }
+      }
+
+      await supabase.from('leases').update(updateData).eq('id', widget.lease['id']);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Lease updated successfully.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lease updated successfully.')),
+      );
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
@@ -94,6 +115,7 @@ class _EditLeasePageState extends State<EditLeasePage> {
       if (mounted) setState(() => isSaving = false);
     }
   }
+
 
   Future<void> _pickDate(TextEditingController controller) async {
     FocusScope.of(context).requestFocus(FocusNode());

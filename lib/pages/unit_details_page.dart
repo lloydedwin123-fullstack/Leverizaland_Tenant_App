@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'edit_unit_page.dart'; // ✅ make sure this import is added at the top of unit_details_page.dart
+import 'edit_unit_page.dart';
 import 'edit_lease_page.dart';
 import 'edit_contact_page.dart';
-
 
 class UnitDetailsPage extends StatefulWidget {
   final String unitId;
   final String building;
   final String unitNumber;
 
-  // Reports flow flags
   final bool showFinanceChips;
   final String? initialChip; // 'arrears' or 'payments'
 
@@ -40,7 +38,8 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 
   String _chip = 'arrears';
 
-  final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+  final currency =
+  NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
   final dateFmt = DateFormat('MMMM d, yyyy');
 
   @override
@@ -61,7 +60,16 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
     try {
       final unitRes = await supabase
           .from('units')
-          .select('id, building, unit_number, current_rent_amount, water_meter_no, electric_meter_no')
+          .select('''
+            id,
+            building,
+            unit_number,
+            current_rent_amount,
+            water_meter_no,
+            electric_meter_no,
+            water_account_no,
+            electric_account_no
+          ''')
           .eq('id', widget.unitId)
           .single();
 
@@ -96,15 +104,17 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       if (activeLeaseRes != null && activeLeaseRes['tenant_id'] != null) {
         final c = await supabase
             .from('contact_persons')
-            .select('id, name, position, email, phone_number, notes, is_primary')
+            .select(
+            'id, name, position, email, phone_number, notes, is_primary')
             .eq('tenant_id', activeLeaseRes['tenant_id']);
         contactsRes = List<Map<String, dynamic>>.from(c as List);
       }
 
       if (!mounted) return;
       setState(() {
-        unit = unitRes as Map<String, dynamic>;
-        activeLease = activeLeaseRes == null ? null : Map<String, dynamic>.from(activeLeaseRes);
+        unit = Map<String, dynamic>.from(unitRes);
+        activeLease =
+        activeLeaseRes == null ? null : Map<String, dynamic>.from(activeLeaseRes);
         pastLeases = List<Map<String, dynamic>>.from(pastRes as List);
         contactPersons = contactsRes;
         isLoading = false;
@@ -112,7 +122,8 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading details: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error loading details: $e')));
     }
   }
 
@@ -138,14 +149,20 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                OverviewCard(unit: unit!, currency: currency, occupied: occupied, dateFmt: dateFmt),
+                OverviewCard(
+                  unit: unit!,
+                  currency: currency,
+                  occupied: occupied,
+                  dateFmt: dateFmt,
+                ),
                 const SizedBox(height: 12),
                 ActiveLeaseCard(
                   lease: activeLease,
                   contacts: contactPersons,
                   currency: currency,
                   dateFmt: dateFmt,
-                  unitCurrentRent: toDouble(unit?['current_rent_amount']),
+                  unitCurrentRent:
+                  toDouble(unit?['current_rent_amount']),
                 ),
                 const SizedBox(height: 12),
                 if (widget.showFinanceChips) ...[
@@ -155,21 +172,29 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                       ChoiceChip(
                         label: const Text('Arrears'),
                         selected: _chip == 'arrears',
-                        onSelected: (_) => setState(() => _chip = 'arrears'),
+                        onSelected: (_) =>
+                            setState(() => _chip = 'arrears'),
                       ),
                       const SizedBox(width: 8),
                       ChoiceChip(
                         label: const Text('Payment History'),
                         selected: _chip == 'payments',
-                        onSelected: (_) => setState(() => _chip = 'payments'),
+                        onSelected: (_) =>
+                            setState(() => _chip = 'payments'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   if (_chip == 'arrears') _buildUnitArrearsByUnitId(),
-                  if (_chip == 'payments') _buildUnitPaymentsByTenant(),
+                  if (_chip == 'payments')
+                    _buildUnitPaymentsByTenant(),
                 ] else
-                  PastLeasesSection(pastLeases: pastLeases, currency: currency, dateFmt: dateFmt, toDouble: toDouble),
+                  PastLeasesSection(
+                    pastLeases: pastLeases,
+                    currency: currency,
+                    dateFmt: dateFmt,
+                    toDouble: toDouble,
+                  ),
               ],
             ),
           ),
@@ -187,7 +212,8 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: supabase
           .from('invoice_payment_status')
-          .select('invoice_id, unit_id, due_date, amount_due, total_paid, balance, lease_status')
+          .select(
+          'invoice_id, unit_id, due_date, amount_due, total_paid, balance, lease_status')
           .eq('unit_id', widget.unitId)
           .eq('lease_status', 'Active')
           .gt('balance', 0)
@@ -213,7 +239,9 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ...items.map((a) {
-              final dueStr = a['due_date'] != null ? dateFmt.format(DateTime.parse(a['due_date'])) : '-';
+              final dueStr = a['due_date'] != null
+                  ? dateFmt.format(DateTime.parse(a['due_date']))
+                  : '-';
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: Padding(
@@ -222,11 +250,15 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Due Date: $dueStr'),
-                      Text('Amount Due: ${currency.format(toDouble(a['amount_due']))}'),
-                      Text('Total Paid: ${currency.format(toDouble(a['total_paid']))}'),
+                      Text(
+                          'Amount Due: ${currency.format(toDouble(a['amount_due']))}'),
+                      Text(
+                          'Total Paid: ${currency.format(toDouble(a['total_paid']))}'),
                       Text(
                         'Balance: ${currency.format(toDouble(a['balance']))}',
-                        style: const TextStyle(color: Color(0xFFAF2626), fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Color(0xFFAF2626),
+                            fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -236,7 +268,10 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
             if (items.length > 1)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('Total Arrears: ${currency.format(total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                child: Text(
+                  'Total Arrears: ${currency.format(total)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
           ],
         );
@@ -269,8 +304,10 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 
         return Column(
           children: pays.map((p) {
-            final dateStr = p['payment_date'] != null ? dateFmt.format(DateTime.parse(p['payment_date'])) : '-';
-            return ConstrainedBox(     // make card heights feel consistent
+            final dateStr = p['payment_date'] != null
+                ? dateFmt.format(DateTime.parse(p['payment_date']))
+                : '-';
+            return ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 120),
               child: Card(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -279,8 +316,10 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Amount Paid: ${currency.format(toDouble(p['amount_paid']))}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        'Amount Paid: ${currency.format(toDouble(p['amount_paid']))}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       Text('Method: ${p['method'] ?? '-'}'),
                       Text('Reference Code: ${p['reference_no'] ?? '-'}'),
                       Text('Remarks: ${p['remarks'] ?? '-'}'),
@@ -298,7 +337,6 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 }
 
 // ====== Overview ======
-
 class OverviewCard extends StatelessWidget {
   final Map<String, dynamic> unit;
   final NumberFormat currency;
@@ -315,6 +353,11 @@ class OverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final waterAccount = unit['water_account_no'] ?? 'no data';
+    final waterMeter = unit['water_meter_no'] ?? 'no data';
+    final electricAccount = unit['electric_account_no'] ?? 'no data';
+    final electricMeter = unit['electric_meter_no'] ?? 'no data';
+
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -323,7 +366,6 @@ class OverviewCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ Title row with Edit button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -341,9 +383,7 @@ class OverviewCard extends StatelessWidget {
                         builder: (context) => EditUnitPage(unit: unit),
                       ),
                     );
-
                     if (updated == true) {
-                      // 🔄 Refresh parent details when returning from EditUnitPage
                       final parentState =
                       context.findAncestorStateOfType<_UnitDetailsPageState>();
                       parentState?.fetchUnitDetails();
@@ -353,19 +393,64 @@ class OverviewCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-
-            // ✅ Display fields
             Text('Rent: ${currency.format(unit['current_rent_amount'] ?? 0)} / month'),
             Text('Status: ${occupied ? 'Occupied' : 'Vacant'}'),
-            Text('Water Meter #: ${unit['water_meter_no'] ?? 'no data'}'),
-            Text('Electric Meter #: ${unit['electric_meter_no'] ?? 'no data'}'),
-            if (unit['water_account_no'] != null)
-              Text('Water Account #: ${unit['water_account_no']}'),
-            if (unit['electric_account_no'] != null)
-              Text('Electric Account #: ${unit['electric_account_no']}'),
+            const SizedBox(height: 4),
+            Text('Water Account #: $waterAccount'),
+            Text('Water Meter #: $waterMeter'),
+            const SizedBox(height: 4),
+            Text('Electric Account #: $electricAccount'),
+            Text('Electric Meter #: $electricMeter'),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ====== Past Leases ======
+class PastLeasesSection extends StatelessWidget {
+  final List<Map<String, dynamic>> pastLeases;
+  final NumberFormat currency;
+  final DateFormat dateFmt;
+  final double Function(dynamic) toDouble;
+
+  const PastLeasesSection({
+    super.key,
+    required this.pastLeases,
+    required this.currency,
+    required this.dateFmt,
+    required this.toDouble,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      title: const Text('Past Leases',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      initiallyExpanded: false,
+      children: pastLeases.isEmpty
+          ? [const Padding(padding: EdgeInsets.all(8), child: Text('No past leases found.'))]
+          : pastLeases.map((l) {
+        final startStr = l['start_date'] != null
+            ? dateFmt.format(DateTime.parse(l['start_date']))
+            : '-';
+        final endStr = l['end_date'] != null
+            ? dateFmt.format(DateTime.parse(l['end_date']))
+            : '-';
+        final rent = toDouble(l['rent_amount']);
+        return ListTile(
+          title: Text('Tenant: ${l['tenant_name'] ?? 'Unknown'}'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Start: $startStr'),
+              Text('End: $endStr'),
+              Text('Rent: ${currency.format(rent)}'),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -464,7 +549,8 @@ class ActiveLeaseCard extends StatelessWidget {
             ),
 
             const SizedBox(height: 8),
-            Text('Tenant: $tenantName', style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text('Tenant: $tenantName',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
             Text('Start Date: $startStr'),
             Text('End Date: $endStr'),
             const Divider(),
@@ -478,10 +564,9 @@ class ActiveLeaseCard extends StatelessWidget {
               'Escalation Period: ${escalationPeriod != null ? 'Every $escalationPeriod year${(escalationPeriod is num && escalationPeriod > 1) ? 's' : ''}' : 'Not Set'}',
             ),
             const SizedBox(height: 10),
-
             const Divider(),
 
-            // ✅ Contact Persons Section with Add Button
+            // ✅ Contact Persons Section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -496,9 +581,8 @@ class ActiveLeaseCard extends StatelessWidget {
                     final updated = await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => EditContactPage(
-                          tenantId: lease!['tenant_id'],
-                        ),
+                        builder: (context) =>
+                            EditContactPage(tenantId: lease!['tenant_id']),
                       ),
                     );
 
@@ -576,10 +660,12 @@ class ActiveLeaseCard extends StatelessWidget {
                                 content: Text('Remove $name from contact persons?'),
                                 actions: [
                                   TextButton(
-                                      onPressed: () => Navigator.pop(ctx, false),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
                                       child: const Text('Cancel')),
                                   TextButton(
-                                      onPressed: () => Navigator.pop(ctx, true),
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, true),
                                       child: const Text('Delete')),
                                 ],
                               ),
@@ -589,7 +675,9 @@ class ActiveLeaseCard extends StatelessWidget {
                               final contactId = c['id'];
                               if (contactId == null) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Cannot delete: contact has no ID.')),
+                                  const SnackBar(
+                                      content: Text(
+                                          'Cannot delete: contact has no ID.')),
                                 );
                                 return;
                               }
@@ -599,10 +687,10 @@ class ActiveLeaseCard extends StatelessWidget {
                                   .delete()
                                   .eq('id', contactId);
 
-                              final parentState = context.findAncestorStateOfType<_UnitDetailsPageState>();
+                              final parentState = context
+                                  .findAncestorStateOfType<_UnitDetailsPageState>();
                               parentState?.fetchUnitDetails();
                             }
-
                           },
                         ),
                       ],
@@ -614,50 +702,6 @@ class ActiveLeaseCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-
-
-// ====== Past Leases ======
-class PastLeasesSection extends StatelessWidget {
-  final List<Map<String, dynamic>> pastLeases;
-  final NumberFormat currency;
-  final DateFormat dateFmt;
-  final double Function(dynamic) toDouble;
-
-  const PastLeasesSection({
-    super.key,
-    required this.pastLeases,
-    required this.currency,
-    required this.dateFmt,
-    required this.toDouble,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      title: const Text('Past Leases', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      initiallyExpanded: false,
-      children: pastLeases.isEmpty
-          ? [const Padding(padding: EdgeInsets.all(8), child: Text('No past leases found.'))]
-          : pastLeases.map((l) {
-        final startStr = l['start_date'] != null ? dateFmt.format(DateTime.parse(l['start_date'])) : '-';
-        final endStr = l['end_date'] != null ? dateFmt.format(DateTime.parse(l['end_date'])) : '-';
-        final rent = toDouble(l['rent_amount']);
-        return ListTile(
-          title: Text('Tenant: ${l['tenant_name'] ?? 'Unknown'}'),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Start: $startStr'),
-              Text('End: $endStr'),
-              Text('Rent: ${currency.format(rent)}'),
-            ],
-          ),
-        );
-      }).toList(),
     );
   }
 }
