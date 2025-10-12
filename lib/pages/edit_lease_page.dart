@@ -86,14 +86,10 @@ class _EditLeasePageState extends State<EditLeasePage> {
       final newValueText = _escalationPeriodCtrl.text.trim();
 
       if (newValueText.isEmpty) {
-        // If the user left it empty
         if (oldValue != null) {
-          // User cleared the previous value
           updateData['escalation_period_years'] = null;
         }
-        // else: old value was null → untouched → don’t include key (keeps it null)
       } else {
-        // User entered something new → save it
         final parsedValue = int.tryParse(newValueText);
         if (parsedValue != oldValue) {
           updateData['escalation_period_years'] = parsedValue;
@@ -116,19 +112,66 @@ class _EditLeasePageState extends State<EditLeasePage> {
     }
   }
 
-
-  Future<void> _pickDate(TextEditingController controller) async {
-    FocusScope.of(context).requestFocus(FocusNode());
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: now,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+  Widget _buildField(String label, TextEditingController controller,
+      {TextInputType keyboardType = TextInputType.text, int maxLines = 1}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
     );
-    if (picked != null) {
-      controller.text = dateFmt.format(picked);
-    }
+  }
+
+  Widget _buildDateField(
+      String label,
+      TextEditingController controller, {
+        bool allowCustomText = false,
+      }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: TextFormField(
+        controller: controller,
+        readOnly: false, // ✅ allow manual typing
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () async {
+              FocusScope.of(context).unfocus();
+              final now = DateTime.now();
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: DateTime.tryParse(controller.text) ?? now,
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2100),
+              );
+              if (picked != null) {
+                controller.text = DateFormat('yyyy-MM-dd').format(picked);
+              }
+            },
+          ),
+        ),
+        onChanged: (value) {
+          if (!allowCustomText) {
+            // Normalize manually typed date formats
+            final normalized = value.replaceAll('/', '-').trim();
+            if (normalized != value) {
+              controller.value = TextEditingValue(
+                text: normalized,
+                selection: TextSelection.collapsed(offset: normalized.length),
+              );
+            }
+          }
+        },
+      ),
+    );
   }
 
   @override
@@ -154,11 +197,19 @@ class _EditLeasePageState extends State<EditLeasePage> {
               _buildDateField('Start Date', _startDateCtrl),
               _buildDateField('End Date', _endDateCtrl),
               _buildField('Base Rent (₱)', _rentCtrl, keyboardType: TextInputType.number),
-              _buildField('Security Deposit', _securityDepositCtrl, keyboardType: TextInputType.number),
-              _buildField('Advance Rent', _advanceRentCtrl, keyboardType: TextInputType.number),
-              _buildDateField('Advance Effectivity', _advanceEffectivityCtrl),
-              _buildField('Escalation Rate (%)', _escalationRateCtrl, keyboardType: TextInputType.number),
-              _buildField('Escalation Period (Years)', _escalationPeriodCtrl, keyboardType: TextInputType.number),
+              _buildField('Security Deposit', _securityDepositCtrl,
+                  keyboardType: TextInputType.number),
+              _buildField('Advance Rent', _advanceRentCtrl,
+                  keyboardType: TextInputType.number),
+              _buildDateField(
+                'Advance Effectivity',
+                _advanceEffectivityCtrl,
+                allowCustomText: true, // ✅ free text allowed here
+              ),
+              _buildField('Escalation Rate (%)', _escalationRateCtrl,
+                  keyboardType: TextInputType.number),
+              _buildField('Escalation Period (Years)', _escalationPeriodCtrl,
+                  keyboardType: TextInputType.number),
               _buildField('Status', _statusCtrl),
               _buildField('Notes', _notesCtrl, maxLines: 3),
               const SizedBox(height: 24),
@@ -173,38 +224,6 @@ class _EditLeasePageState extends State<EditLeasePage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildField(String label, TextEditingController controller,
-      {TextInputType keyboardType = TextInputType.text, int maxLines = 1}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateField(String label, TextEditingController controller) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: TextFormField(
-        controller: controller,
-        readOnly: true,
-        decoration: InputDecoration(
-          labelText: label,
-          suffixIcon: const Icon(Icons.calendar_today),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        onTap: () => _pickDate(controller),
       ),
     );
   }
