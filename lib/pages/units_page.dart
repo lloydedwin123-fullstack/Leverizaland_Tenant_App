@@ -28,10 +28,30 @@ class _UnitsPageState extends State<UnitsPage> {
           .from('units')
           .select(
           'id, building, unit_number, current_rent_amount, tenants(name)')
-          .order('building', ascending: true);
+          .order('building', ascending: true)
+          .order('unit_number', ascending: true);
 
       setState(() {
         units = List<Map<String, dynamic>>.from(response);
+
+        // 🧠 Custom sort: group by building, then numeric unit number
+        units.sort((a, b) {
+          final buildingA = (a['building'] ?? '').toString().toLowerCase();
+          final buildingB = (b['building'] ?? '').toString().toLowerCase();
+
+          if (buildingA != buildingB) {
+            return buildingA.compareTo(buildingB);
+          }
+
+          final numA = int.tryParse(
+              (a['unit_number'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '')) ??
+              0;
+          final numB = int.tryParse(
+              (b['unit_number'] ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '')) ??
+              0;
+          return numA.compareTo(numB);
+        });
+
         filteredUnits = units;
         isLoading = false;
       });
@@ -51,8 +71,7 @@ class _UnitsPageState extends State<UnitsPage> {
       filteredUnits = units.where((unit) {
         final building = (unit['building'] ?? '').toString().toLowerCase();
         final unitNumber = (unit['unit_number'] ?? '').toString().toLowerCase();
-        final rent =
-        (unit['current_rent_amount'] ?? '').toString().toLowerCase();
+        final rent = (unit['current_rent_amount'] ?? '').toString().toLowerCase();
         final tenantName =
         (unit['tenants']?['name'] ?? 'Vacant').toString().toLowerCase();
         return building.contains(q) ||
@@ -86,8 +105,8 @@ class _UnitsPageState extends State<UnitsPage> {
           children: [
             // 🔍 Search Bar
             Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 8),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: TextField(
                 onChanged: filterUnits,
                 decoration: InputDecoration(
@@ -113,18 +132,22 @@ class _UnitsPageState extends State<UnitsPage> {
                   final unit = filteredUnits[index];
 
                   final building =
-                      unit['building'] ?? "Unknown Building";
+                  (unit['building'] ?? '').toString().trim();
                   final unitNumber = (unit['unit_number']
                       ?.toString()
                       .trim()
                       .isEmpty ??
                       true)
-                      ? "-"
-                      : unit['unit_number'];
-                  final rent =
-                      unit['current_rent_amount'] ?? 0;
+                      ? null
+                      : unit['unit_number'].toString().trim();
+                  final rent = unit['current_rent_amount'] ?? 0;
                   final tenantName =
                       unit['tenants']?['name'] ?? "Vacant";
+
+                  // 🏷️ Display: Building + Unit number
+                  final displayTitle = unitNumber == null
+                      ? building
+                      : "$building $unitNumber";
 
                   // 🖱️ Clickable Unit Card
                   return InkWell(
@@ -136,7 +159,7 @@ class _UnitsPageState extends State<UnitsPage> {
                             unitId: unit['id'],
                             building: building,
                             unitNumber:
-                            unitNumber.toString(),
+                            unitNumber?.toString() ?? "",
                           ),
                         ),
                       );
@@ -151,7 +174,7 @@ class _UnitsPageState extends State<UnitsPage> {
                           CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "$building - Unit $unitNumber",
+                              displayTitle,
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -173,8 +196,8 @@ class _UnitsPageState extends State<UnitsPage> {
                                 color: tenantName == "Vacant"
                                     ? Colors.red[700]
                                     : Colors.black87,
-                                fontWeight:
-                                tenantName == "Vacant"
+                                fontWeight: tenantName ==
+                                    "Vacant"
                                     ? FontWeight.bold
                                     : FontWeight.normal,
                               ),
