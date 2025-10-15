@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'edit_unit_page.dart';
 import 'edit_lease_page.dart';
 import 'edit_contact_page.dart';
+import 'payment_details_page.dart';
+
 
 class UnitDetailsPage extends StatefulWidget {
   final String unitId;
@@ -299,6 +301,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
         if (snap.hasError) {
           return Text('Error: ${snap.error}');
         }
+
         final pays = snap.data ?? [];
         if (pays.isEmpty) return const Text('No payment history.');
 
@@ -307,24 +310,35 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
             final dateStr = p['payment_date'] != null
                 ? dateFmt.format(DateTime.parse(p['payment_date']))
                 : '-';
+
             return ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 120),
-              child: Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Amount Paid: ${currency.format(toDouble(p['amount_paid']))}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text('Method: ${p['method'] ?? '-'}'),
-                      Text('Reference Code: ${p['reference_no'] ?? '-'}'),
-                      Text('Remarks: ${p['remarks'] ?? '-'}'),
-                      Text('Payment Date: $dateStr'),
-                    ],
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PaymentDetailsPage(payment: p),
+                    ),
+                  );
+                },
+                child: Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Amount Paid: ${currency.format(toDouble(p['amount_paid']))}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text('Method: ${p['method'] ?? '-'}'),
+                        Text('Reference Code: ${p['reference_no'] ?? '-'}'),
+                        Text('Remarks: ${p['remarks'] ?? '-'}'),
+                        Text('Payment Date: $dateStr'),
+                      ],
+                    ),
                   ),
                 ),
               ),
