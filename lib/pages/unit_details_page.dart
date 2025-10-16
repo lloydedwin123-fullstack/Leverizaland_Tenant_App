@@ -6,7 +6,6 @@ import 'edit_lease_page.dart';
 import 'edit_contact_page.dart';
 import 'payment_details_page.dart';
 
-
 class UnitDetailsPage extends StatefulWidget {
   final String unitId;
   final String building;
@@ -291,7 +290,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: supabase
           .from('payments')
-          .select('amount_paid, method, reference_no, remarks, payment_date')
+          .select('*')
           .eq('tenant_id', tenantId)
           .order('payment_date', ascending: false),
       builder: (context, snap) {
