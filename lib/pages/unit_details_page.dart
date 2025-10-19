@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+
+import '../widgets/file_section_widget.dart'; // 🧩 Reusable file section
 import 'edit_unit_page.dart';
 import 'edit_lease_page.dart';
 import 'edit_contact_page.dart';
@@ -10,9 +12,8 @@ class UnitDetailsPage extends StatefulWidget {
   final String unitId;
   final String building;
   final String unitNumber;
-
   final bool showFinanceChips;
-  final String? initialChip; // 'arrears' or 'payments'
+  final String? initialChip;
 
   const UnitDetailsPage({
     super.key,
@@ -31,14 +32,12 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
   final supabase = Supabase.instance.client;
 
   bool isLoading = true;
-
   Map<String, dynamic>? unit;
   Map<String, dynamic>? activeLease;
   List<Map<String, dynamic>> pastLeases = [];
   List<Map<String, dynamic>> contactPersons = [];
 
   String _chip = 'arrears';
-
   final currency =
   NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
   final dateFmt = DateFormat('MMMM d, yyyy');
@@ -62,14 +61,8 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       final unitRes = await supabase
           .from('units')
           .select('''
-            id,
-            building,
-            unit_number,
-            current_rent_amount,
-            water_meter_no,
-            electric_meter_no,
-            water_account_no,
-            electric_account_no
+            id, building, unit_number, current_rent_amount,
+            water_meter_no, electric_meter_no, water_account_no, electric_account_no
           ''')
           .eq('id', widget.unitId)
           .single();
@@ -77,18 +70,9 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       final activeLeaseRes = await supabase
           .from('leases')
           .select('''
-            id,
-            tenant_id,
-            tenant_name,
-            start_date,
-            end_date,
-            status,
-            rent_amount,
-            security_deposit,
-            advance_rent,
-            advance_effectivity,
-            escalation_rate,
-            escalation_period_years
+            id, tenant_id, tenant_name, start_date, end_date, status,
+            rent_amount, security_deposit, advance_rent, advance_effectivity,
+            escalation_rate, escalation_period_years
           ''')
           .eq('unit_id', widget.unitId)
           .eq('status', 'Active')
@@ -150,13 +134,27 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // ====== Overview ======
                 OverviewCard(
                   unit: unit!,
                   currency: currency,
                   occupied: occupied,
                   dateFmt: dateFmt,
                 ),
+
                 const SizedBox(height: 12),
+
+                // ====== Unit Documents ======
+                FileSectionWidget(
+                  category: 'unit_documents',
+                  referenceId: widget.unitId,
+                  isPublic: false,
+                  title: 'Unit Documents',
+                ),
+
+                const SizedBox(height: 12),
+
+                // ====== Active Lease ======
                 ActiveLeaseCard(
                   lease: activeLease,
                   contacts: contactPersons,
@@ -165,7 +163,21 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                   unitCurrentRent:
                   toDouble(unit?['current_rent_amount']),
                 ),
+
                 const SizedBox(height: 12),
+
+                // ====== Lease Documents ======
+                if (activeLease != null)
+                  FileSectionWidget(
+                    category: 'lease_documents',
+                    referenceId: activeLease!['id'].toString(),
+                    isPublic: false,
+                    title: 'Lease Documents',
+                  ),
+
+                const SizedBox(height: 12),
+
+                // ====== Finance Tabs / Past Leases ======
                 if (widget.showFinanceChips) ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -204,7 +216,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
     );
   }
 
-  // ====== Arrears (by unit_id) ======
+  // ====== Arrears ======
   Widget _buildUnitArrearsByUnitId() {
     if (activeLease == null || activeLease!['tenant_id'] == null) {
       return const Text('No active lease; no unpaid invoices for this unit.');
@@ -280,11 +292,12 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
     );
   }
 
-  // ====== Payments (active lease tenant) ======
+  // ====== Payments ======
   Widget _buildUnitPaymentsByTenant() {
     if (activeLease == null || activeLease!['tenant_id'] == null) {
       return const Text('No active lease; no payment history for this unit.');
     }
+
     final tenantId = activeLease!['tenant_id'];
 
     return FutureBuilder<List<Map<String, dynamic>>>(
@@ -349,7 +362,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
   }
 }
 
-// ====== Overview ======
+// ====== Overview Card ======
 class OverviewCard extends StatelessWidget {
   final Map<String, dynamic> unit;
   final NumberFormat currency;
@@ -421,7 +434,7 @@ class OverviewCard extends StatelessWidget {
   }
 }
 
-// ====== Past Leases ======
+// ====== Past Leases Section ======
 class PastLeasesSection extends StatelessWidget {
   final List<Map<String, dynamic>> pastLeases;
   final NumberFormat currency;
@@ -532,7 +545,7 @@ class ActiveLeaseCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ Title + Edit button
+            // Title + Edit Lease button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -579,7 +592,7 @@ class ActiveLeaseCard extends StatelessWidget {
             const SizedBox(height: 10),
             const Divider(),
 
-            // ✅ Contact Persons Section
+            // ✅ CONTACT PERSONS SECTION RESTORED
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -608,7 +621,6 @@ class ActiveLeaseCard extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 6),
 
             contacts.isEmpty
@@ -670,7 +682,8 @@ class ActiveLeaseCard extends StatelessWidget {
                               context: context,
                               builder: (ctx) => AlertDialog(
                                 title: const Text('Delete Contact?'),
-                                content: Text('Remove $name from contact persons?'),
+                                content:
+                                Text('Remove $name from contact persons?'),
                                 actions: [
                                   TextButton(
                                       onPressed: () =>
@@ -718,3 +731,4 @@ class ActiveLeaseCard extends StatelessWidget {
     );
   }
 }
+

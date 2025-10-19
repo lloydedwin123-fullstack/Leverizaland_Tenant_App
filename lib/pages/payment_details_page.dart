@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../services/file_service.dart'; // ✅ Import FileService
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/file_section_widget.dart'; // 🧩 our reusable file widget
 
-class PaymentDetailsPage extends StatelessWidget {
+class PaymentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> payment;
 
   const PaymentDetailsPage({super.key, required this.payment});
 
+  @override
+  State<PaymentDetailsPage> createState() => _PaymentDetailsPageState();
+}
+
+class _PaymentDetailsPageState extends State<PaymentDetailsPage> {
   double _toDouble(dynamic v) {
     if (v == null) return 0.0;
     if (v is double) return v;
@@ -16,23 +19,27 @@ class PaymentDetailsPage extends StatelessWidget {
     return double.tryParse(v.toString()) ?? 0.0;
   }
 
+  late final String paymentId;
+  late final NumberFormat currency;
+  late final DateFormat dateFmt;
+
+  @override
+  void initState() {
+    super.initState();
+    paymentId = widget.payment['id']?.toString() ?? '';
+    currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱');
+    dateFmt = DateFormat('MMMM d, yyyy');
+  }
+
   @override
   Widget build(BuildContext context) {
-    print('✅ Payment Data: $payment');
-
-    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱');
-    final dateFmt = DateFormat('MMMM d, yyyy');
-
-    final amount = _toDouble(payment['amount_paid']);
-    final method = payment['method'] ?? '-';
-    final ref = payment['reference_no'] ?? '-';
-    final remarks = payment['remarks'] ?? '-';
-    final date = payment['payment_date'] != null
-        ? dateFmt.format(DateTime.parse(payment['payment_date']))
+    final amount = _toDouble(widget.payment['amount_paid']);
+    final method = widget.payment['method'] ?? '-';
+    final ref = widget.payment['reference_no'] ?? '-';
+    final remarks = widget.payment['remarks'] ?? '-';
+    final date = widget.payment['payment_date'] != null
+        ? dateFmt.format(DateTime.parse(widget.payment['payment_date']))
         : '-';
-
-    final paymentId = payment['id']?.toString() ?? ''; // ✅ Important: ID used to fetch files
-    final fileService = FileService(); // ✅ Initialize service
 
     return Scaffold(
       appBar: AppBar(
@@ -40,7 +47,6 @@ class PaymentDetailsPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,83 +86,14 @@ class PaymentDetailsPage extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            // ====== Attached Files Section ======
+            // ====== Attached Files Section (Reusable Widget) ======
             if (paymentId.isNotEmpty)
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: FutureBuilder<List<Map<String, dynamic>>>(
-                    future: fileService.getFiles('payment', paymentId),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (snapshot.hasError) {
-                        return Text('Error loading files: ${snapshot.error}');
-                      }
-
-                      final files = snapshot.data ?? [];
-                      if (files.isEmpty) {
-                        return const Text(
-                          'No attached files found.',
-                          style: TextStyle(color: Colors.black54),
-                        );
-                      }
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Attached Files',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ...files.map((file) {
-                            final fileName = file['file_name'] ?? 'Unnamed file';
-                            final fileUrl = file['file_url'] ?? '';
-
-                            return TextButton.icon(
-                              icon: const Icon(Icons.attach_file, size: 20),
-                              label: Text(
-                                fileName,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.blue,
-                                ),
-                              ),
-                              onPressed: () async {
-                                final uri = Uri.parse(fileUrl);
-                                if (await canLaunchUrl(uri)) {
-                                  await launchUrl(
-                                    uri,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Could not open the file link.'),
-                                    ),
-                                  );
-                                }
-                              },
-                            );
-                          }),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+              FileSectionWidget(
+                category: 'payment_proofs', // 🧩 unified category
+                referenceId: paymentId,
+                isPublic: false,             // 🛡️ private bucket
+                title: 'Payment Proofs',     // section title
               ),
-
-            const SizedBox(height: 12),
           ],
         ),
       ),
