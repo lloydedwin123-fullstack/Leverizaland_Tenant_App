@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'tenant_details_page.dart'; // ✅ Tenant details page
+import '../widgets/generate_invoices_dialog.dart'; // Import the dialog
 
 class TenantsPage extends StatefulWidget {
   const TenantsPage({super.key});
@@ -22,7 +23,6 @@ class _TenantsPageState extends State<TenantsPage> {
     fetchTenants();
   }
 
-  // 🧩 Fetch tenants (only active)
   Future<void> fetchTenants() async {
     try {
       final response = await supabase
@@ -40,20 +40,23 @@ class _TenantsPageState extends State<TenantsPage> {
           .eq('active', true) // ✅ Only include active tenants
           .order('name', ascending: true);
 
-      setState(() {
-        tenants = List<Map<String, dynamic>>.from(response);
-        filteredTenants = tenants;
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          tenants = List<Map<String, dynamic>>.from(response);
+          filteredTenants = tenants;
+          isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error loading tenants: $e")),
-      );
+      if (mounted) {
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error loading tenants: $e")),
+        );
+      }
     }
   }
 
-  // 🔍 Filter tenants by search
   void filterTenants(String query) {
     final q = query.toLowerCase();
     setState(() {
@@ -67,6 +70,70 @@ class _TenantsPageState extends State<TenantsPage> {
     });
   }
 
+  Future<void> _generateInvoices() async {
+    final now = DateTime.now();
+    final firstDayOfMonth = DateTime(now.year, now.month, 1);
+    final lastDayOfMonth = DateTime(now.year, now.month + 1, 0);
+
+    try {
+      // 1. Get all active leases with tenant names
+      final leasesResponse = await supabase
+          .from('leases')
+          .select('id, tenant_id, rent_amount, tenants (name)')
+          .eq('status', 'Active');
+      
+      final leases = List<Map<String, dynamic>>.from(leasesResponse);
+
+      if (leases.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No active leases found.')),
+          );
+        }
+        return;
+      }
+
+      // 2. Get all invoices for the current month to check for existence
+      final invoicesResponse = await supabase
+          .from('invoices')
+          .select('lease_id')
+          .gte('due_date', firstDayOfMonth.toIso8601String())
+          .lte('due_date', lastDayOfMonth.toIso8601String());
+
+      final existingInvoices = List<Map<String, dynamic>>.from(invoicesResponse)
+          .map((invoice) => invoice['lease_id'])
+          .toSet();
+
+      // 3. Add a flag to each lease indicating if an invoice already exists
+      final allLeasesWithStatus = leases.map((lease) {
+        return {
+          ...lease,
+          'has_invoice': existingInvoices.contains(lease['id']),
+        };
+      }).toList();
+
+      // 4. Show the confirmation dialog
+      final invoicesCreated = await showDialog<int>(
+        context: context,
+        builder: (context) => GenerateInvoicesDialog(leasesToInvoice: allLeasesWithStatus),
+      );
+
+      if (mounted && invoicesCreated != null && invoicesCreated > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Successfully generated $invoicesCreated invoices.')),
+        );
+      }
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error generating invoices: $e")),
+        );
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,6 +141,11 @@ class _TenantsPageState extends State<TenantsPage> {
         title: const Text("Tenants List"),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_card),
+            onPressed: _generateInvoices,
+            tooltip: 'Generate Monthly Invoices',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: fetchTenants,
@@ -88,7 +160,6 @@ class _TenantsPageState extends State<TenantsPage> {
         onRefresh: fetchTenants,
         child: Column(
           children: [
-            // 🔍 Search Bar
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 8),
@@ -106,8 +177,6 @@ class _TenantsPageState extends State<TenantsPage> {
                 ),
               ),
             ),
-
-            // 📋 Tenants List
             Expanded(
               child: filteredTenants.isEmpty
                   ? const Center(
@@ -132,7 +201,6 @@ class _TenantsPageState extends State<TenantsPage> {
                   final units =
                       tenant['units'] as List<dynamic>? ?? [];
 
-                  // 🏢 Unit info
                   final unitNumbers = units.map((u) {
                     final building = u['building'] ?? "";
                     final unitNumber =
@@ -142,7 +210,6 @@ class _TenantsPageState extends State<TenantsPage> {
                         : building;
                   }).join(", ");
 
-                  // 💰 Rent info
                   final rents = units
                       .map((u) {
                     final rent = u['current_rent_amount'];
@@ -165,8 +232,7 @@ class _TenantsPageState extends State<TenantsPage> {
                         ),
                       ),
                       subtitle: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (tenantPhone.isNotEmpty ||
                               tenantEmail.isNotEmpty)
@@ -186,7 +252,6 @@ class _TenantsPageState extends State<TenantsPage> {
                         ],
                       ),
 
-                      // 👇 On tap → go to Tenant Details Page
                       onTap: () {
                         Navigator.push(
                           context,

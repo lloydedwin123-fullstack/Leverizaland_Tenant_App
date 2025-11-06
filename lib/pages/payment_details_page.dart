@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../widgets/file_section_widget.dart'; // 🧩 our reusable file widget
+import 'edit_payment_page.dart';
 
 class PaymentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> payment;
@@ -12,6 +13,14 @@ class PaymentDetailsPage extends StatefulWidget {
 }
 
 class _PaymentDetailsPageState extends State<PaymentDetailsPage> {
+  late Map<String, dynamic> _payment;
+
+  @override
+  void initState() {
+    super.initState();
+    _payment = widget.payment;
+  }
+
   double _toDouble(dynamic v) {
     if (v == null) return 0.0;
     if (v is double) return v;
@@ -19,32 +28,43 @@ class _PaymentDetailsPageState extends State<PaymentDetailsPage> {
     return double.tryParse(v.toString()) ?? 0.0;
   }
 
-  late final String paymentId;
-  late final NumberFormat currency;
-  late final DateFormat dateFmt;
-
-  @override
-  void initState() {
-    super.initState();
-    paymentId = widget.payment['id']?.toString() ?? '';
-    currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱');
-    dateFmt = DateFormat('MMMM d, yyyy');
-  }
-
   @override
   Widget build(BuildContext context) {
-    final amount = _toDouble(widget.payment['amount_paid']);
-    final method = widget.payment['method'] ?? '-';
-    final ref = widget.payment['reference_no'] ?? '-';
-    final remarks = widget.payment['remarks'] ?? '-';
-    final date = widget.payment['payment_date'] != null
-        ? dateFmt.format(DateTime.parse(widget.payment['payment_date']))
+    final paymentId = _payment['id']?.toString() ?? '';
+    final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱');
+    final dateFmt = DateFormat('MMMM d, yyyy');
+
+    final amount = _toDouble(_payment['amount_paid']);
+    final method = _payment['method'] ?? '-';
+    final ref = _payment['reference_no'] ?? '-';
+    final remarks = _payment['remarks'] ?? '-';
+    final date = _payment['payment_date'] != null
+        ? dateFmt.format(DateTime.parse(_payment['payment_date']))
         : '-';
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Payment Details'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditPaymentPage(payment: _payment),
+                ),
+              );
+              if (result == true && mounted) {
+                // Refetch the payment data if it was edited
+                // For simplicity, we just pop for now. A better implementation
+                // would be to pass back the updated payment data.
+                Navigator.pop(context, true);
+              }
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),

@@ -9,6 +9,7 @@ class FileSectionWidget extends StatefulWidget {
   final String referenceId;    // e.g. payment_id, tenant_id
   final bool isPublic;         // decides which bucket
   final String title;          // section label (optional)
+  final bool canEdit;          // controls if editing is allowed
 
   const FileSectionWidget({
     super.key,
@@ -16,6 +17,7 @@ class FileSectionWidget extends StatefulWidget {
     required this.referenceId,
     this.isPublic = false,
     this.title = 'Attached Files',
+    this.canEdit = true,     // Default to true for backward compatibility
   });
 
   @override
@@ -38,15 +40,19 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
     try {
       final files =
       await fileService.getFiles(widget.category, widget.referenceId);
-      setState(() {
-        _files = files;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _files = files;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading files: $e')),
-      );
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading files: $e')),
+        );
+      }
     }
   }
 
@@ -61,9 +67,11 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
       final file = File(result.files.single.path!);
       final fileName = result.files.single.name;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Uploading $fileName...')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Uploading $fileName...')),
+        );
+      }
 
       await fileService.uploadFile(
         category: widget.category,
@@ -72,15 +80,19 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
         isPublic: widget.isPublic,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File uploaded successfully!')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File uploaded successfully!')),
+        );
+      }
 
       _fetchFiles();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Upload failed: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
     }
   }
 
@@ -103,18 +115,22 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
       ),
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     try {
       await fileService.deleteFile(fileId: fileId, fileUrl: fileUrl);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Deleted $fileName')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Deleted $fileName')),
+        );
+      }
       _fetchFiles();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
     }
   }
 
@@ -146,11 +162,12 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.upload_file, color: Colors.blue),
-                  tooltip: 'Attach New File',
-                  onPressed: _pickAndUploadFile,
-                ),
+                if (widget.canEdit)
+                  IconButton(
+                    icon: const Icon(Icons.upload_file, color: Colors.blue),
+                    tooltip: 'Attach New File',
+                    onPressed: _pickAndUploadFile,
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -183,20 +200,24 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
                         fileName,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteFile(fileId, fileName, fileUrl),
-                      ),
+                      trailing: widget.canEdit
+                          ? IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteFile(fileId, fileName, fileUrl),
+                            )
+                          : null,
                       onTap: () async {
                         final uri = Uri.parse(fileUrl);
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri, mode: LaunchMode.externalApplication);
                         } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Could not open the file link.'),
-                            ),
-                          );
+                          if(mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Could not open the file link.'),
+                              ),
+                            );
+                          }
                         }
                       },
                     ),
