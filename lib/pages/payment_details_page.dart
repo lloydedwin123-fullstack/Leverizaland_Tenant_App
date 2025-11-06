@@ -49,6 +49,7 @@ class _PaymentDetailsPageState extends State<PaymentDetailsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
+            tooltip: 'Edit Payment',
             onPressed: () async {
               final result = await Navigator.push(
                 context,
@@ -57,9 +58,8 @@ class _PaymentDetailsPageState extends State<PaymentDetailsPage> {
                 ),
               );
               if (result == true && mounted) {
-                // Refetch the payment data if it was edited
                 // For simplicity, we just pop for now. A better implementation
-                // would be to pass back the updated payment data.
+                // would be to pass back the updated payment data and refresh.
                 Navigator.pop(context, true);
               }
             },
@@ -106,13 +106,14 @@ class _PaymentDetailsPageState extends State<PaymentDetailsPage> {
 
             const SizedBox(height: 12),
 
-            // ====== Attached Files Section (Reusable Widget) ======
+            // ====== Attached Files Section (Read-Only) ======
             if (paymentId.isNotEmpty)
               FileSectionWidget(
-                category: 'payment_proofs', // 🧩 unified category
+                category: 'payment_proofs',
                 referenceId: paymentId,
-                isPublic: false,             // 🛡️ private bucket
-                title: 'Payment Proofs',     // section title
+                isPublic: false,
+                title: 'Payment Proofs',
+                canEdit: false, // Make the widget read-only
               ),
           ],
         ),

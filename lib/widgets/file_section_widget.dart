@@ -1,15 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/file_service.dart';
 
 class FileSectionWidget extends StatefulWidget {
-  final String category;       // e.g. 'payment_proofs', 'tenant_documents'
-  final String referenceId;    // e.g. payment_id, tenant_id
-  final bool isPublic;         // decides which bucket
-  final String title;          // section label (optional)
-  final bool canEdit;          // controls if editing is allowed
+  final String category;
+  final String referenceId;
+  final bool isPublic;
+  final String title;
+  final bool canEdit;
 
   const FileSectionWidget({
     super.key,
@@ -17,7 +16,7 @@ class FileSectionWidget extends StatefulWidget {
     required this.referenceId,
     this.isPublic = false,
     this.title = 'Attached Files',
-    this.canEdit = true,     // Default to true for backward compatibility
+    this.canEdit = true,
   });
 
   @override
@@ -36,10 +35,10 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
   }
 
   Future<void> _fetchFiles() async {
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
-      final files =
-      await fileService.getFiles(widget.category, widget.referenceId);
+      final files = await fileService.getFiles(widget.category, widget.referenceId);
       if (mounted) {
         setState(() {
           _files = files;
@@ -58,16 +57,12 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
 
   Future<void> _pickAndUploadFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        type: FileType.any,
-      );
-      if (result == null) return;
-
-      final file = File(result.files.single.path!);
-      final fileName = result.files.single.name;
+      // Use the new, unified picker from the service
+      final File? file = await fileService.pickFile(context);
+      if (file == null) return; // User canceled the picker
 
       if (mounted) {
+        final fileName = file.path.split('/').last;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Uploading $fileName...')),
         );
@@ -137,7 +132,8 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: Padding(
+      return const Center(
+          child: Padding(
         padding: EdgeInsets.all(12.0),
         child: CircularProgressIndicator(),
       ));
@@ -151,7 +147,6 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ==== Header ====
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -171,8 +166,6 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
               ],
             ),
             const SizedBox(height: 8),
-
-            // ==== Empty state ====
             if (_files.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 6),
@@ -211,7 +204,7 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
                         if (await canLaunchUrl(uri)) {
                           await launchUrl(uri, mode: LaunchMode.externalApplication);
                         } else {
-                          if(mounted) {
+                          if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Could not open the file link.'),

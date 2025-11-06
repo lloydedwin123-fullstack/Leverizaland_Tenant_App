@@ -158,7 +158,7 @@ class _TenantDetailsPageState extends State<TenantDetailsPage> {
               builder: (context) => AddPaymentPage(tenantId: widget.tenantId),
             ),
           );
-          if (result == true && mounted) {
+          if (result != null && mounted) {
             setState(() {
               _filter = 'payments';
             });
@@ -318,7 +318,9 @@ class _TenantDetailsPageState extends State<TenantDetailsPage> {
                     ),
                   );
                   if (result == true && mounted) {
-                    setState(() {});
+                    setState(() {
+                      _filter = 'payments';
+                    });
                   }
                 },
               ),

@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../widgets/file_section_widget.dart';
+import '../services/file_service.dart';
 
 class AddPaymentPage extends StatefulWidget {
   final String tenantId;
@@ -17,17 +19,19 @@ class AddPaymentPage extends StatefulWidget {
 class _AddPaymentPageState extends State<AddPaymentPage> {
   final supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
+  final _fileService = FileService();
   bool isSaving = false;
 
   // Text Controllers
   late TextEditingController _amountCtrl;
   late TextEditingController _paymentDateCtrl;
-  late TextEditingController _methodCtrl; // Changed to text controller
+  late TextEditingController _methodCtrl;
   late TextEditingController _referenceNoCtrl;
   late TextEditingController _remarksCtrl;
   final List<String> _paymentMethods = ['Cash', 'Check', 'Bank Transfer', 'GCash', 'GoTyme', 'Other'];
 
   late Future<double?> _invoiceBalanceFuture;
+  File? _selectedFile;
 
   @override
   void initState() {
@@ -100,6 +104,7 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
     if (mounted && !_formKey.currentState!.validate()) return;
 
     setState(() => isSaving = true);
+    final amountPaid = double.tryParse(_amountCtrl.text) ?? 0;
 
     try {
       final parsedDate = _tryParseDate(_paymentDateCtrl.text);
@@ -107,21 +112,34 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
         throw Exception('Invalid date format.');
       }
 
-      await supabase.from('payments').insert({
+      // Phase 1: Save the payment record and get the new ID
+      final newPayment = await supabase.from('payments').insert({
         'tenant_id': widget.tenantId,
         'invoice_id': widget.invoiceId,
-        'amount_paid': double.tryParse(_amountCtrl.text) ?? 0,
+        'amount_paid': amountPaid,
         'payment_date': DateFormat('yyyy-MM-dd').format(parsedDate),
         'method': _methodCtrl.text,
         'reference_no': _referenceNoCtrl.text,
         'remarks': _remarksCtrl.text,
       }).select('id').single();
 
+      final newPaymentId = newPayment['id'];
+
+      // Phase 2: If a file was selected, upload it and link it to the new payment
+      if (_selectedFile != null) {
+        await _fileService.uploadFile(
+          category: 'payment_proofs',
+          referenceId: newPaymentId,
+          file: _selectedFile!,
+        );
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Payment added successfully!')),
         );
-        Navigator.pop(context, true);
+        // Return the amount paid so the previous screen can update its state instantly
+        Navigator.pop(context, amountPaid);
       }
     } catch (e) {
       if (mounted) {
@@ -133,6 +151,15 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
       if (mounted) {
         setState(() => isSaving = false);
       }
+    }
+  }
+
+  Future<void> _pickFile() async {
+    final file = await _fileService.pickFile(context);
+    if (file != null) {
+      setState(() {
+        _selectedFile = file;
+      });
     }
   }
 
@@ -234,13 +261,49 @@ class _AddPaymentPageState extends State<AddPaymentPage> {
                     maxLines: 3,
                   ),
                   const Divider(height: 40),
-                  if (widget.invoiceId != null)
-                    FileSectionWidget(
-                      category: 'payment_proofs',
-                      referenceId: widget.invoiceId!,
-                      isPublic: false,
-                      title: 'Payment Proofs',
+                  // --- Payment Proofs ---
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Payment Proofs',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.upload_file, color: Colors.blue),
+                                tooltip: 'Attach File',
+                                onPressed: _pickFile,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (_selectedFile == null)
+                            const Text('No file selected.')
+                          else
+                            ListTile(
+                              leading: const Icon(Icons.attach_file),
+                              title: Text(_selectedFile!.path.split('/').last),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedFile = null;
+                                  });
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
+                  ),
                 ],
               ),
             ),

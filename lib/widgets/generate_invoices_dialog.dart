@@ -1,5 +1,5 @@
-
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class GenerateInvoicesDialog extends StatefulWidget {
@@ -13,21 +13,20 @@ class GenerateInvoicesDialog extends StatefulWidget {
 
 class _GenerateInvoicesDialogState extends State<GenerateInvoicesDialog> {
   final supabase = Supabase.instance.client;
-  late Set<String> _selectedLeaseIds;
-  bool _isSaving = false;
+  late Set<dynamic> _selectedLeaseIds;
+  bool _isGenerating = false;
 
   @override
   void initState() {
     super.initState();
-    // By default, all proposed invoices are selected
     _selectedLeaseIds = widget.leasesToInvoice
         .where((lease) => !(lease['has_invoice'] as bool))
-        .map((lease) => lease['id'] as String)
+        .map((lease) => lease['id'])
         .toSet();
   }
 
   Future<void> _confirmAndGenerate() async {
-    setState(() => _isSaving = true);
+    setState(() => _isGenerating = true);
 
     try {
       final selectedLeases = widget.leasesToInvoice
@@ -35,61 +34,76 @@ class _GenerateInvoicesDialogState extends State<GenerateInvoicesDialog> {
           .toList();
 
       if (selectedLeases.isEmpty) {
-        Navigator.pop(context, 0); // Return 0 invoices created
+        if (mounted) Navigator.pop(context, 0);
         return;
       }
-      
+
       final now = DateTime.now();
       final firstDayOfMonth = DateTime(now.year, now.month, 1);
 
       final newInvoices = selectedLeases.map((lease) => {
-        'tenant_id': lease['tenant_id'],
         'lease_id': lease['id'],
         'amount_due': lease['rent_amount'],
         'due_date': firstDayOfMonth.toIso8601String(),
-        'notes': 'Monthly Rent for \${now.month}/\${now.year}',
+        'remarks': 'Monthly Rent for ${DateFormat('MMMM yyyy').format(now)}', // Corrected from 'notes'
+        'category': 'Rent',
       }).toList();
 
       await supabase.from('invoices').insert(newInvoices);
 
       if (mounted) {
-        Navigator.pop(context, newInvoices.length); // Return the number of invoices created
+        Navigator.pop(context, newInvoices.length);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error generating invoices: \$e")),
+          SnackBar(content: Text("Error generating invoices: $e")),
         );
         Navigator.pop(context, 0);
       }
     } finally {
       if (mounted) {
-        setState(() => _isSaving = false);
+        setState(() => _isGenerating = false);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final currencyFormatter = NumberFormat.currency(locale: 'en_PH', symbol: '₱');
+
     return AlertDialog(
-      title: const Text('Generate Monthly Invoices'),
-      content: _isSaving
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('Generate Monthly Invoices'),
+          Text(
+            '(${_selectedLeaseIds.length})',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.normal,
+              color: Colors.blueGrey,
+            ),
+          ),
+        ],
+      ),
+      content: _isGenerating
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: widget.leasesToInvoice.map((lease) {
-                  final leaseId = lease['id'] as String;
+                  final leaseId = lease['id'];
                   final tenantName = lease['tenants']?['name'] ?? 'Unknown Tenant';
                   final rentAmount = lease['rent_amount'] ?? 0;
                   final hasInvoice = lease['has_invoice'] as bool;
 
                   return CheckboxListTile(
                     title: Text(tenantName),
-                    subtitle: Text('Rent: ₱\$rentAmount'),
+                    subtitle: Text('Rent: ${currencyFormatter.format(rentAmount)}'),
                     value: _selectedLeaseIds.contains(leaseId),
                     onChanged: hasInvoice
-                        ? null // Disable the checkbox if an invoice already exists
+                        ? null // Disable checkbox if invoice already exists
                         : (bool? selected) {
                             setState(() {
                               if (selected == true) {
@@ -109,8 +123,8 @@ class _GenerateInvoicesDialogState extends State<GenerateInvoicesDialog> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: _isSaving ? null : _confirmAndGenerate,
-          child: _isSaving ? const Text('Saving...') : const Text('Confirm'),
+          onPressed: _isGenerating ? null : _confirmAndGenerate,
+          child: _isGenerating ? const Text('Generating...') : const Text('Confirm'),
         ),
       ],
     );

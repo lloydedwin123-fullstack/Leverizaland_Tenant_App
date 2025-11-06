@@ -17,49 +17,11 @@ class ArrearDetailsPage extends StatefulWidget {
 
 class _ArrearDetailsPageState extends State<ArrearDetailsPage> {
   late Map<String, dynamic> _arrearData;
-  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _arrearData = widget.arrear;
-  }
-
-  Future<void> _fetchArrearDetails({bool popOnSuccess = false}) async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
-    try {
-      final response = await Supabase.instance.client
-          .from('invoice_payment_status')
-          .select('*')
-          .eq('invoice_id', _arrearData['invoice_id'])
-          .single();
-
-      if (mounted) {
-        // If the balance is now zero, it means the invoice has been fully paid.
-        final newBalance = response['balance'] ?? 0.0;
-        if (newBalance <= 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Invoice has been fully paid!')),
-          );
-          // Pop back and signal a refresh is needed.
-          Navigator.pop(context, true); 
-          return;
-        }
-
-        setState(() {
-          _arrearData = response;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching details: $e')),
-        );
-        setState(() => _isLoading = false);
-      }
-    }
   }
 
   @override
@@ -96,9 +58,7 @@ class _ArrearDetailsPageState extends State<ArrearDetailsPage> {
           )
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+      body: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -132,7 +92,6 @@ class _ArrearDetailsPageState extends State<ArrearDetailsPage> {
                     canEdit: false,
                   ),
                   const SizedBox(height: 20),
-                  // Only show the Add Payment button if there is a balance
                   if (!isPaid)
                     ElevatedButton.icon(
                       icon: const Icon(Icons.payment),
@@ -141,7 +100,7 @@ class _ArrearDetailsPageState extends State<ArrearDetailsPage> {
                         minimumSize: const Size(double.infinity, 50),
                       ),
                       onPressed: () async {
-                        final result = await Navigator.push(
+                        final paymentAmount = await Navigator.push<double>(
                           context,
                           MaterialPageRoute(
                             builder: (context) => AddPaymentPage(
@@ -151,9 +110,21 @@ class _ArrearDetailsPageState extends State<ArrearDetailsPage> {
                           ),
                         );
 
-                        // If a payment was successfully added, re-fetch the details
-                        if (result == true) {
-                          _fetchArrearDetails();
+                        if (paymentAmount != null && paymentAmount > 0 && mounted) {
+                          final newTotalPaid = (_arrearData['total_paid'] ?? 0.0) + paymentAmount;
+                          final newBalance = (_arrearData['amount_due'] ?? 0.0) - newTotalPaid;
+
+                          if (newBalance <= 0) {
+                             ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Invoice has been fully paid!')),
+                            );
+                            Navigator.pop(context, true); // Pop and signal a refresh
+                          } else {
+                            setState(() {
+                              _arrearData['total_paid'] = newTotalPaid;
+                              _arrearData['balance'] = newBalance;
+                            });
+                          }
                         }
                       },
                     ),
