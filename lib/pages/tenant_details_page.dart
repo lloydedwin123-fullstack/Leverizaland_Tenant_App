@@ -171,6 +171,28 @@ class _TenantDetailsPageState extends State<TenantDetailsPage> {
   }
 
   Widget _buildTenantDetails(NumberFormat currencyFormatter) {
+    // Determine primary contact (if any)
+    Map<String, dynamic>? primaryContact;
+
+    if (contactPersons.isNotEmpty) {
+      try {
+        primaryContact = contactPersons.firstWhere(
+          (c) => c['is_primary'] == true,
+          orElse: () => contactPersons.first,
+        );
+      } catch (_) {
+        primaryContact = contactPersons.first;
+      }
+    }
+
+    final primaryName =
+        primaryContact?['name'] ?? tenant?['contact_person'] ?? '-';
+    final primaryPhone =
+        primaryContact?['phone_number'] ?? tenant?['phone'] ?? '-';
+    final primaryEmail =
+        primaryContact?['email'] ?? tenant?['email'] ?? '-';
+    final primaryPosition = primaryContact?['position'];
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -194,9 +216,11 @@ class _TenantDetailsPageState extends State<TenantDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Contact Person: ${tenant?['contact_person'] ?? '-'}"),
-                    Text("Phone: ${tenant?['phone'] ?? '-'}"),
-                    Text("Email: ${tenant?['email'] ?? '-'}"),
+                    Text("Contact Person: $primaryName"),
+                    if (primaryPosition != null && primaryPosition.toString().trim().isNotEmpty)
+                      Text("Position: $primaryPosition"),
+                    Text("Phone: $primaryPhone"),
+                    Text("Email: $primaryEmail"),
                     const SizedBox(height: 8),
                     Text("Emergency Contact Person: ${tenant?['emergency_contact_name'] ?? '-'}"),
                     Text("Emergency Contact Number: ${tenant?['emergency_contact_number'] ?? '-'}"),
@@ -215,11 +239,32 @@ class _TenantDetailsPageState extends State<TenantDetailsPage> {
           if (contactPersons.isEmpty)
             const Text("No contact persons found."),
           ...contactPersons.map((c) {
+            final position = (c['position'] ?? '').toString().trim();
+            final phone = (c['phone_number'] ?? '').toString().trim();
+            final email = (c['email'] ?? '').toString().trim();
+            final notes = (c['notes'] ?? '').toString().trim();
+            final isPrimary = c['is_primary'] == true;
+
+            final List<String> lines = [];
+            if (position.isNotEmpty) lines.add('Position: $position');
+            if (phone.isNotEmpty) lines.add('Phone: $phone');
+            if (email.isNotEmpty) lines.add('Email: $email');
+            if (notes.isNotEmpty) lines.add('Notes: $notes');
+
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
-                title: Text(c['name'] ?? 'N/A'),
-                subtitle: Text(c['position'] ?? 'N/A'),
+                title: Row(
+                  children: [
+                    if (isPrimary)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 6.0),
+                        child: Icon(Icons.star, size: 18, color: Colors.amber),
+                      ),
+                    Expanded(child: Text(c['name'] ?? 'N/A')),
+                  ],
+                ),
+                subtitle: lines.isEmpty ? null : Text(lines.join('\n')),
               ),
             );
           }),

@@ -205,8 +205,17 @@ class _EditTenantDetailsPageState extends State<EditTenantDetailsPage> {
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: ListTile(
-                        title: Text(contact['name'] ?? 'N/A'),
-                        subtitle: Text(contact['position'] ?? 'N/A'),
+                        title: Row(
+                          children: [
+                            if (contact['is_primary'] == true)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 6.0),
+                                child: Icon(Icons.star, size: 18, color: Colors.amber),
+                              ),
+                            Expanded(child: Text(contact['name'] ?? 'N/A')),
+                          ],
+                        ),
+                        subtitle: _buildContactSubtitle(contact),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -230,7 +239,10 @@ class _EditTenantDetailsPageState extends State<EditTenantDetailsPage> {
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () async {
-                                await supabase.from('contact_persons').delete().eq('id', contact['id']);
+                                await supabase
+                                    .from('contact_persons')
+                                    .delete()
+                                    .eq('id', contact['id']);
                                 fetchTenantDetails();
                               },
                             ),
@@ -263,5 +275,22 @@ class _EditTenantDetailsPageState extends State<EditTenantDetailsPage> {
         ),
       ),
     );
+  }
+
+  Widget? _buildContactSubtitle(Map<String, dynamic> contact) {
+    final position = (contact['position'] ?? '').toString().trim();
+    final phone = (contact['phone_number'] ?? '').toString().trim();
+    final email = (contact['email'] ?? '').toString().trim();
+    final notes = (contact['notes'] ?? '').toString().trim();
+
+    final List<String> lines = [];
+
+    if (position.isNotEmpty) lines.add('Position: $position');
+    if (phone.isNotEmpty) lines.add('Phone: $phone');
+    if (email.isNotEmpty) lines.add('Email: $email');
+    if (notes.isNotEmpty) lines.add('Notes: $notes');
+
+    if (lines.isEmpty) return null;
+    return Text(lines.join('\n'));
   }
 }
