@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
-import '../widgets/file_section_widget.dart'; // 🧩 Reusable file section
+import '../widgets/file_section_widget.dart';
 import 'edit_unit_page.dart';
 import 'edit_lease_page.dart';
 import 'edit_contact_page.dart';
+import 'edit_tenant_details_page.dart';
 import 'payment_details_page.dart';
+import '../models/arrear_summary.dart';
+import 'property_arrears_page.dart';
 
 class UnitDetailsPage extends StatefulWidget {
   final String unitId;
@@ -32,20 +36,28 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
   final supabase = Supabase.instance.client;
 
   bool isLoading = true;
+
   Map<String, dynamic>? unit;
   Map<String, dynamic>? activeLease;
+  Map<String, dynamic>? tenant; // 👈 tenant details
   List<Map<String, dynamic>> pastLeases = [];
   List<Map<String, dynamic>> contactPersons = [];
 
-  String _chip = 'arrears';
+  // chips: tenant | unit | arrears | payments
+  String _chip = 'unit';
+
   final currency =
-  NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+      NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
   final dateFmt = DateFormat('MMMM d, yyyy');
+
+  // For payments search
+  final TextEditingController _paymentsSearchController =
+      TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _chip = widget.initialChip ?? 'arrears';
+    _chip = widget.initialChip ?? 'unit';
     fetchUnitDetails();
   }
 
@@ -58,6 +70,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 
   Future<void> fetchUnitDetails() async {
     try {
+      // ---- Unit basic info ----
       final unitRes = await supabase
           .from('units')
           .select('''
@@ -67,6 +80,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
           .eq('id', widget.unitId)
           .single();
 
+      // ---- Active lease (if any) ----
       final activeLeaseRes = await supabase
           .from('leases')
           .select('''
@@ -78,6 +92,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
           .eq('status', 'Active')
           .maybeSingle();
 
+      // ---- Past leases ----
       final pastRes = await supabase
           .from('leases')
           .select('id, tenant_name, start_date, end_date, rent_amount')
@@ -85,13 +100,30 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
           .eq('status', 'Ended')
           .order('end_date', ascending: false);
 
+      Map<String, dynamic>? tenantRes;
       List<Map<String, dynamic>> contactsRes = [];
+
+      // If there is an active lease, fetch tenant + contacts
       if (activeLeaseRes != null && activeLeaseRes['tenant_id'] != null) {
+        final t = await supabase
+            .from('tenants')
+            .select('''
+              id, name, phone, email, contact_person,
+              emergency_contact_name, emergency_contact_number, emergency_contact_relationship
+            ''')
+            .eq('id', activeLeaseRes['tenant_id'])
+            .maybeSingle();
+
+        if (t != null) {
+          tenantRes = Map<String, dynamic>.from(t);
+        }
+
         final c = await supabase
             .from('contact_persons')
             .select(
-            'id, name, position, email, phone_number, notes, is_primary')
+                'id, name, position, email, phone_number, notes, is_primary')
             .eq('tenant_id', activeLeaseRes['tenant_id']);
+
         contactsRes = List<Map<String, dynamic>>.from(c as List);
       }
 
@@ -99,8 +131,9 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       setState(() {
         unit = Map<String, dynamic>.from(unitRes);
         activeLease =
-        activeLeaseRes == null ? null : Map<String, dynamic>.from(activeLeaseRes);
+            activeLeaseRes == null ? null : Map<String, dynamic>.from(activeLeaseRes);
         pastLeases = List<Map<String, dynamic>>.from(pastRes as List);
+        tenant = tenantRes;
         contactPersons = contactsRes;
         isLoading = false;
       });
@@ -114,250 +147,559 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final occupied = activeLease != null;
     final titleUnit = (widget.unitNumber.trim().isEmpty)
         ? widget.building
         : '${widget.building} ${widget.unitNumber}';
 
     return Scaffold(
-      appBar: AppBar(title: Text(titleUnit), centerTitle: true),
+      appBar: AppBar(
+        title: Text(titleUnit),
+        centerTitle: true,
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : unit == null
-          ? const Center(child: Text('Unit not found'))
-          : RefreshIndicator(
-        onRefresh: fetchUnitDetails,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ====== Overview ======
-                OverviewCard(
-                  unit: unit!,
-                  currency: currency,
-                  occupied: occupied,
-                  dateFmt: dateFmt,
-                ),
-
-                const SizedBox(height: 12),
-
-                // ====== Unit Documents ======
-                FileSectionWidget(
-                  category: 'unit_documents',
-                  referenceId: widget.unitId,
-                  isPublic: false,
-                  title: 'Unit Documents',
-                ),
-
-                const SizedBox(height: 12),
-
-                // ====== Active Lease ======
-                ActiveLeaseCard(
-                  lease: activeLease,
-                  contacts: contactPersons,
-                  currency: currency,
-                  dateFmt: dateFmt,
-                  unitCurrentRent:
-                  toDouble(unit?['current_rent_amount']),
-                ),
-
-                const SizedBox(height: 12),
-
-                // ====== Lease Documents ======
-                if (activeLease != null)
-                  FileSectionWidget(
-                    category: 'lease_documents',
-                    referenceId: activeLease!['id'].toString(),
-                    isPublic: false,
-                    title: 'Lease Documents',
-                  ),
-
-                const SizedBox(height: 12),
-
-                // ====== Finance Tabs / Past Leases ======
-                if (widget.showFinanceChips) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('Arrears'),
-                        selected: _chip == 'arrears',
-                        onSelected: (_) =>
-                            setState(() => _chip = 'arrears'),
+              ? const Center(child: Text('Unit not found'))
+              : Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    // ===== Chips row =====
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Tenant Details'),
+                            selected: _chip == 'tenant',
+                            onSelected: (_) =>
+                                setState(() => _chip = 'tenant'),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Unit Details'),
+                            selected: _chip == 'unit',
+                            onSelected: (_) => setState(() => _chip = 'unit'),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Arrears'),
+                            selected: _chip == 'arrears',
+                            onSelected: (_) =>
+                                setState(() => _chip = 'arrears'),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: const Text('Payment History'),
+                            selected: _chip == 'payments',
+                            onSelected: (_) =>
+                                setState(() => _chip = 'payments'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: const Text('Payment History'),
-                        selected: _chip == 'payments',
-                        onSelected: (_) =>
-                            setState(() => _chip = 'payments'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_chip == 'arrears') _buildUnitArrearsByUnitId(),
-                  if (_chip == 'payments')
-                    _buildUnitPaymentsByTenant(),
-                ] else
-                  PastLeasesSection(
-                    pastLeases: pastLeases,
-                    currency: currency,
-                    dateFmt: dateFmt,
-                    toDouble: toDouble,
-                  ),
-              ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ===== Active tab content =====
+                    Expanded(
+                      child: _buildActiveTab(),
+                    ),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildActiveTab() {
+    switch (_chip) {
+      case 'tenant':
+        return _buildTenantDetailsTab();
+      case 'unit':
+        return _buildUnitDetailsTab();
+      case 'arrears':
+        return _buildArrearsTab();
+      case 'payments':
+        return _buildPaymentsTab();
+      default:
+        return _buildUnitDetailsTab();
+    }
+  }
+
+  Widget _buildTenantDetailsTab() {
+    if (tenant == null) {
+      return const Center(
+        child: Text('No active tenant for this unit.'),
+      );
+    }
+
+    // Determine primary contact
+    Map<String, dynamic>? primaryContact;
+    if (contactPersons.isNotEmpty) {
+      try {
+        primaryContact = contactPersons.firstWhere(
+          (c) => c['is_primary'] == true,
+          orElse: () => contactPersons.first,
+        );
+      } catch (_) {
+        primaryContact = contactPersons.first;
+      }
+    }
+
+    final primaryName =
+        primaryContact?['name'] ?? tenant?['contact_person'] ?? '-';
+    final primaryPhone =
+        primaryContact?['phone_number'] ?? tenant?['phone'] ?? '-';
+    final primaryEmail =
+        primaryContact?['email'] ?? tenant?['email'] ?? '-';
+    final primaryPosition = primaryContact?['position'];
+
+    final tenantId = tenant?['id'] ?? activeLease?['tenant_id'];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () async {
+              if (tenantId == null) return;
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      EditTenantDetailsPage(tenantId: tenantId.toString()),
+                ),
+              );
+              if (result == true && mounted) {
+                fetchUnitDetails();
+              }
+            },
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Contact Person: $primaryName"),
+                    if (primaryPosition != null &&
+                        primaryPosition.toString().trim().isNotEmpty)
+                      Text("Position: $primaryPosition"),
+                    Text("Phone: $primaryPhone"),
+                    Text("Email: $primaryEmail"),
+                    const SizedBox(height: 8),
+                    Text(
+                        "Emergency Contact Person: ${tenant?['emergency_contact_name'] ?? '-'}"),
+                    Text(
+                        "Emergency Contact Number: ${tenant?['emergency_contact_number'] ?? '-'}"),
+                    Text(
+                        "Relationship: ${tenant?['emergency_contact_relationship'] ?? '-'}"),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: 16),
+          const Text(
+            "Contact Persons:",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          if (contactPersons.isEmpty)
+            const Text("No contact persons found.")
+          else
+            ...contactPersons.map((c) {
+              final position = (c['position'] ?? '').toString().trim();
+              final phone = (c['phone_number'] ?? '').toString().trim();
+              final email = (c['email'] ?? '').toString().trim();
+              final notes = (c['notes'] ?? '').toString().trim();
+              final isPrimary = c['is_primary'] == true;
+
+              final List<String> lines = [];
+              if (position.isNotEmpty) lines.add('Position: $position');
+              if (phone.isNotEmpty) lines.add('Phone: $phone');
+              if (email.isNotEmpty) lines.add('Email: $email');
+              if (notes.isNotEmpty) lines.add('Notes: $notes');
+
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  title: Row(
+                    children: [
+                      if (isPrimary)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 6.0),
+                          child: Icon(Icons.star,
+                              size: 18, color: Colors.amber),
+                        ),
+                      Expanded(child: Text(c['name'] ?? 'N/A')),
+                    ],
+                  ),
+                  subtitle: lines.isEmpty ? null : Text(lines.join('\n')),
+                ),
+              );
+            }).toList(),
+          const SizedBox(height: 16),
+          if (tenantId != null)
+            FileSectionWidget(
+              category: 'tenant_documents',
+              referenceId: tenantId.toString(),
+              isPublic: false,
+              title: 'Tenant Documents',
+            ),
+        ],
       ),
     );
   }
 
-  // ====== Arrears ======
-  Widget _buildUnitArrearsByUnitId() {
-    if (activeLease == null || activeLease!['tenant_id'] == null) {
-      return const Text('No active lease; no unpaid invoices for this unit.');
-    }
+  Widget _buildUnitDetailsTab() {
+    final occupied = activeLease != null;
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: supabase
-          .from('invoice_payment_status')
-          .select(
-          'invoice_id, unit_id, due_date, amount_due, total_paid, balance, lease_status')
-          .eq('unit_id', widget.unitId)
-          .eq('lease_status', 'Active')
-          .gt('balance', 0)
-          .order('due_date', ascending: true),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) {
-          return Text('Error: ${snap.error}');
-        }
-        final items = snap.data ?? [];
-        if (items.isEmpty) {
-          return const Text('No unpaid invoices for this unit.');
-        }
-
-        double total = 0;
-        for (final r in items) {
-          total += toDouble(r['balance']);
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...items.map((a) {
-              final dueStr = a['due_date'] != null
-                  ? dateFmt.format(DateTime.parse(a['due_date']))
-                  : '-';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Due Date: $dueStr'),
-                      Text(
-                          'Amount Due: ${currency.format(toDouble(a['amount_due']))}'),
-                      Text(
-                          'Total Paid: ${currency.format(toDouble(a['total_paid']))}'),
-                      Text(
-                        'Balance: ${currency.format(toDouble(a['balance']))}',
-                        style: const TextStyle(
-                            color: Color(0xFFAF2626),
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            if (items.length > 1)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Total Arrears: ${currency.format(total)}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-          ],
-        );
-      },
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OverviewCard(
+            unit: unit!,
+            currency: currency,
+            occupied: occupied,
+            dateFmt: dateFmt,
+          ),
+          const SizedBox(height: 12),
+          FileSectionWidget(
+            category: 'unit_documents',
+            referenceId: widget.unitId,
+            isPublic: false,
+            title: 'Unit Documents',
+          ),
+          const SizedBox(height: 12),
+          ActiveLeaseCard(
+            lease: activeLease,
+            contacts: contactPersons,
+            currency: currency,
+            dateFmt: dateFmt,
+            unitCurrentRent: toDouble(unit?['current_rent_amount']),
+          ),
+          const SizedBox(height: 12),
+          if (activeLease != null)
+            FileSectionWidget(
+              category: 'lease_documents',
+              referenceId: activeLease!['id'].toString(),
+              isPublic: false,
+              title: 'Lease Documents',
+            ),
+          const SizedBox(height: 12),
+          PastLeasesSection(
+            pastLeases: pastLeases,
+            currency: currency,
+            dateFmt: dateFmt,
+            toDouble: toDouble,
+          ),
+        ],
+      ),
     );
   }
 
-  // ====== Payments ======
-  Widget _buildUnitPaymentsByTenant() {
+  Widget _buildArrearsTab() {
     if (activeLease == null || activeLease!['tenant_id'] == null) {
-      return const Text('No active lease; no payment history for this unit.');
+      return const Center(
+        child: Text('No active lease; no unpaid invoices.'),
+      );
     }
 
     final tenantId = activeLease!['tenant_id'];
 
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: supabase
-          .from('payments')
-          .select('*')
+          .from('invoice_payment_status')
+          .select(
+              'invoice_id, tenant_id, tenant_name, building, unit_name, due_date, amount_due, total_paid, balance, category, remarks')
           .eq('tenant_id', tenantId)
-          .order('payment_date', ascending: false),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          .gt('balance', 0)
+          .order('due_date', ascending: true),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.amber));
         }
-        if (snap.hasError) {
-          return Text('Error: ${snap.error}');
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              "Error: ${snapshot.error}",
+              style: const TextStyle(color: Colors.red),
+            ),
+          );
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text("No unpaid invoices"));
         }
 
-        final pays = snap.data ?? [];
-        if (pays.isEmpty) return const Text('No payment history.');
+        final arrears = snapshot.data!;
+        final groupedArrears = _groupArrears(arrears);
 
-        return Column(
-          children: pays.map((p) {
-            final dateStr = p['payment_date'] != null
-                ? dateFmt.format(DateTime.parse(p['payment_date']))
-                : '-';
-
-            return ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 120),
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
+        return ListView.builder(
+          itemCount: groupedArrears.length,
+          itemBuilder: (context, index) {
+            final summary = groupedArrears[index];
+            return Card(
+              margin: const EdgeInsets.all(8),
+              child: ListTile(
+                title: Text(
+                  summary.propertyName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Total Balance: ${currency.format(summary.totalBalance)}",
+                      style: const TextStyle(
+                        color: Color(0xFFAF2626),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text("Coverage: ${summary.dateRange}"),
+                    Text("${summary.invoiceCount} Unpaid Invoices"),
+                  ],
+                ),
+                onTap: () async {
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => PaymentDetailsPage(payment: p),
+                      builder: (context) => PropertyArrearsPage(
+                        propertyName: summary.propertyName,
+                        invoices: summary.invoices,
+                      ),
+                    ),
+                  );
+                  if (result == true && mounted) {
+                    setState(() {
+                      _chip = 'payments';
+                    });
+                  }
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<ArrearSummary> _groupArrears(List<Map<String, dynamic>> arrears) {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final arrear in arrears) {
+      final propertyName =
+          "${arrear['building'] ?? ''}${arrear['unit_name'] != null ? ' ${arrear['unit_name']}' : ''}";
+      (grouped[propertyName] ??= []).add(arrear);
+    }
+
+    return grouped.entries.map((entry) {
+      final propertyName = entry.key;
+      final invoices = entry.value;
+      final totalBalance =
+          invoices.fold<double>(0, (sum, item) => sum + (item['balance'] ?? 0));
+      final invoiceCount = invoices.length;
+
+      invoices.sort((a, b) =>
+          (a['due_date'] as String).compareTo(b['due_date'] as String));
+      final startDate =
+          DateFormat('MMMM yyyy').format(DateTime.parse(invoices.first['due_date']));
+      final endDate =
+          DateFormat('MMMM yyyy').format(DateTime.parse(invoices.last['due_date']));
+      final dateRange = startDate == endDate ? startDate : '$startDate to $endDate';
+
+      return ArrearSummary(
+        propertyName: propertyName,
+        totalBalance: totalBalance,
+        invoiceCount: invoiceCount,
+        dateRange: dateRange,
+        invoices: invoices,
+      );
+    }).toList();
+  }
+
+  Future<void> _deletePayment(String paymentId) async {
+    try {
+      await supabase.from('payments').delete().eq('id', paymentId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment deleted successfully!')),
+        );
+        setState(() {}); // refresh
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting payment: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildPaymentsTab() {
+    if (activeLease == null || activeLease!['tenant_id'] == null) {
+      return const Center(
+        child: Text('No active lease; no payment history for this unit.'),
+      );
+    }
+
+    final tenantId = activeLease!['tenant_id'];
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: TextField(
+            controller: _paymentsSearchController,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText:
+                  "Search payments (method, reference, remarks, date)...",
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: supabase
+                .from('payments')
+                .select('*, invoice_id(*)')
+                .eq('tenant_id', tenantId)
+                .order('payment_date', ascending: false),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                    child: CircularProgressIndicator(color: Colors.amber));
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    "Error: ${snapshot.error}",
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                );
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text("No payment history."));
+              }
+
+              final searchQuery =
+                  _paymentsSearchController.text.toLowerCase();
+
+              final payments = snapshot.data!.where((p) {
+                final method =
+                    (p['method'] ?? '').toString().toLowerCase();
+                final ref =
+                    (p['reference_no'] ?? '').toString().toLowerCase();
+                final remarks =
+                    (p['remarks'] ?? '').toString().toLowerCase();
+
+                final formattedDate = p['payment_date'] != null
+                    ? DateFormat('MMMM d, yyyy')
+                        .format(DateTime.parse(p['payment_date']))
+                        .toLowerCase()
+                    : '';
+
+                return method.contains(searchQuery) ||
+                    ref.contains(searchQuery) ||
+                    remarks.contains(searchQuery) ||
+                    formattedDate.contains(searchQuery);
+              }).toList();
+
+              if (payments.isEmpty) {
+                return const Center(child: Text("No results found."));
+              }
+
+              return ListView.builder(
+                itemCount: payments.length,
+                itemBuilder: (context, index) {
+                  final p = payments[index];
+                  final formattedDate = p['payment_date'] != null
+                      ? DateFormat('MMMM d, yyyy')
+                          .format(DateTime.parse(p['payment_date']))
+                      : '-';
+
+                  return Slidable(
+                    key: ValueKey(p['id']),
+                    endActionPane: ActionPane(
+                      motion: const ScrollMotion(),
+                      children: [
+                        SlidableAction(
+                          onPressed: (context) async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: const Text('Delete Payment'),
+                                  content: const Text(
+                                      'Are you sure you want to delete this payment?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, true),
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+
+                            if (confirm == true) {
+                              _deletePayment(p['id']);
+                            }
+                          },
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          icon: Icons.delete,
+                          label: 'Delete',
+                        ),
+                      ],
+                    ),
+                    child: Card(
+                      margin: const EdgeInsets.all(8),
+                      child: ListTile(
+                        title: Text(
+                          "Amount Paid: ${currency.format(p['amount_paid'] ?? 0)}",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Method: ${p['method'] ?? '-'}"),
+                            Text("Reference Code: ${p['reference_no'] ?? '-'}"),
+                            Text("Remarks: ${p['remarks'] ?? '-'}"),
+                            Text("Payment Date: $formattedDate"),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  PaymentDetailsPage(payment: p),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   );
                 },
-                child: Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Amount Paid: ${currency.format(toDouble(p['amount_paid']))}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text('Method: ${p['method'] ?? '-'}'),
-                        Text('Reference Code: ${p['reference_no'] ?? '-'}'),
-                        Text('Remarks: ${p['remarks'] ?? '-'}'),
-                        Text('Payment Date: $dateStr'),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        );
-      },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -731,4 +1073,3 @@ class ActiveLeaseCard extends StatelessWidget {
     );
   }
 }
-
