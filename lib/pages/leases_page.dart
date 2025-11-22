@@ -3,6 +3,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'unit_details_page.dart';
 
+enum SortOption {
+  expirationAsc,
+  expirationDesc,
+  tenantAsc,
+  tenantDesc,
+  unitAsc,
+  unitDesc,
+}
+
 class LeasesPage extends StatefulWidget {
   const LeasesPage({super.key});
 
@@ -18,6 +27,7 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
   List<Map<String, dynamic>> filteredLeases = [];
   bool isLoading = true;
   String searchQuery = '';
+  SortOption _currentSort = SortOption.expirationAsc; // Default sort
 
   final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
   final dateFmt = DateFormat('MMM d, yyyy');
@@ -26,7 +36,7 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(_filterByTab);
+    _tabController.addListener(_applyFiltersAndSort);
     fetchLeases();
   }
 
@@ -35,13 +45,15 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
       final response = await supabase
           .from('leases')
           .select('*, tenants(name), units(building, unit_number)')
-          .order('end_date', ascending: true); // Show expiring first
+          .order('end_date', ascending: true); 
 
-      setState(() {
-        allLeases = List<Map<String, dynamic>>.from(response);
-        _filterByTab(); // Apply initial filter
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          allLeases = List<Map<String, dynamic>>.from(response);
+          _applyFiltersAndSort();
+          isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => isLoading = false);
@@ -52,12 +64,13 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
     }
   }
 
-  void _filterByTab() {
+  void _applyFiltersAndSort() {
     if (!mounted) return;
     
     final index = _tabController.index;
     List<Map<String, dynamic>> temp;
 
+    // 1. Filter by Tab Status
     // 0: Active, 1: Expiring Soon (< 60 days), 2: Ended
     if (index == 0) {
       temp = allLeases.where((l) => l['status'] == 'Active').toList();
@@ -74,7 +87,7 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
       temp = allLeases.where((l) => l['status'] != 'Active').toList();
     }
 
-    // Apply search query if any
+    // 2. Filter by Search Query
     if (searchQuery.isNotEmpty) {
       final q = searchQuery.toLowerCase();
       temp = temp.where((l) {
@@ -85,14 +98,60 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
       }).toList();
     }
 
+    // 3. Sort
+    temp.sort((a, b) {
+      switch (_currentSort) {
+        case SortOption.expirationAsc:
+          final dA = a['end_date'] != null ? DateTime.parse(a['end_date']) : DateTime(2100);
+          final dB = b['end_date'] != null ? DateTime.parse(b['end_date']) : DateTime(2100);
+          return dA.compareTo(dB);
+        case SortOption.expirationDesc:
+          final dA = a['end_date'] != null ? DateTime.parse(a['end_date']) : DateTime(1900);
+          final dB = b['end_date'] != null ? DateTime.parse(b['end_date']) : DateTime(1900);
+          return dB.compareTo(dA);
+        case SortOption.tenantAsc:
+          final tA = (a['tenants']?['name'] ?? '').toString().toLowerCase();
+          final tB = (b['tenants']?['name'] ?? '').toString().toLowerCase();
+          return tA.compareTo(tB);
+        case SortOption.tenantDesc:
+          final tA = (a['tenants']?['name'] ?? '').toString().toLowerCase();
+          final tB = (b['tenants']?['name'] ?? '').toString().toLowerCase();
+          return tB.compareTo(tA);
+        case SortOption.unitAsc:
+          final uA = _getUnitSortString(a);
+          final uB = _getUnitSortString(b);
+          return uA.compareTo(uB);
+        case SortOption.unitDesc:
+          final uA = _getUnitSortString(a);
+          final uB = _getUnitSortString(b);
+          return uB.compareTo(uA);
+      }
+    });
+
     setState(() {
       filteredLeases = temp;
     });
   }
 
+  String _getUnitSortString(Map<String, dynamic> lease) {
+    final b = (lease['units']?['building'] ?? '').toString();
+    final n = (lease['units']?['unit_number'] ?? '').toString();
+    // Simple sort key: Building + Unit Number padded
+    return '$b $n'.toLowerCase();
+  }
+
   void _onSearch(String val) {
     searchQuery = val;
-    _filterByTab();
+    _applyFiltersAndSort();
+  }
+
+  void _changeSort(SortOption? option) {
+    if (option != null) {
+      setState(() {
+        _currentSort = option;
+      });
+      _applyFiltersAndSort();
+    }
   }
 
   @override
@@ -109,6 +168,39 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
             Tab(text: 'Ended'),
           ],
         ),
+        actions: [
+          PopupMenuButton<SortOption>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort Leases',
+            onSelected: _changeSort,
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: SortOption.expirationAsc,
+                child: Text('Expiration (Earliest First)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.expirationDesc,
+                child: Text('Expiration (Latest First)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.tenantAsc,
+                child: Text('Tenant (A-Z)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.tenantDesc,
+                child: Text('Tenant (Z-A)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.unitAsc,
+                child: Text('Unit (A-Z)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.unitDesc,
+                child: Text('Unit (Z-A)'),
+              ),
+            ],
+          ),
+        ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -161,7 +253,6 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
     if (status == 'Active') statusColor = Colors.green;
     if (status == 'Ended') statusColor = Colors.red;
 
-    // Check if expiring soon for coloring
     if (status == 'Active' && lease['end_date'] != null) {
       final end = DateTime.parse(lease['end_date']);
       if (end.difference(DateTime.now()).inDays < 60) {
@@ -207,7 +298,6 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
           ],
         ),
         onTap: () {
-          // Navigate to Unit Details since that's where we edit leases
           if (lease['unit_id'] != null) {
             Navigator.push(
               context,

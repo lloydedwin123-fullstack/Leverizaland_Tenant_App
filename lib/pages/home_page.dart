@@ -14,7 +14,8 @@ import 'settings_page.dart';
 import 'invoices_page.dart';
 import 'vacant_units_page.dart';
 import 'monthly_payments_page.dart';
-import 'monthly_receivables_page.dart'; // ✅ Import Monthly Receivables
+import 'monthly_receivables_page.dart';
+import 'add_lease_page.dart'; 
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -42,7 +43,7 @@ class _HomePageState extends State<HomePage> {
   double revenueThisMonth = 0.0;
   double revenueYTD = 0.0;
 
-  // Chart Data (12 Months)
+  // Chart Data
   List<double> monthlyRevenue = List.filled(12, 0.0); 
   List<String> monthLabels = List.filled(12, ''); 
   int occupiedUnits = 0;
@@ -202,6 +203,81 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  // ✅ Show Vacant Unit Picker for Creating Lease
+  Future<void> _showVacantUnitPicker(BuildContext context) async {
+    try {
+       final activeLeases = await supabase
+          .from('leases')
+          .select('unit_id')
+          .eq('status', 'Active');
+      final occupiedIds = List<Map<String, dynamic>>.from(activeLeases).map((l) => l['unit_id']).toSet();
+
+      final unitsRes = await supabase
+          .from('units')
+          .select('id, building, unit_number, current_rent_amount')
+          .order('building');
+      
+      final vacantUnits = List<Map<String, dynamic>>.from(unitsRes)
+          .where((u) => !occupiedIds.contains(u['id']))
+          .toList();
+
+      if (!mounted) return;
+      
+      if (vacantUnits.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No vacant units available!")));
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context,
+        builder: (ctx) => Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Select a Unit to Lease", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: vacantUnits.length,
+                  itemBuilder: (ctx, i) {
+                    final u = vacantUnits[i];
+                    final name = "${u['building']} ${u['unit_number'] ?? ''}";
+                    final rent = u['current_rent_amount'] ?? 0.0;
+                    
+                    return ListTile(
+                      leading: const Icon(Icons.meeting_room_outlined, color: Colors.green),
+                      title: Text(name),
+                      subtitle: Text("Rent: ₱$rent"),
+                      onTap: () {
+                        Navigator.pop(ctx); 
+                        Navigator.push(
+                          context, 
+                          MaterialPageRoute(
+                            builder: (_) => AddLeasePage(
+                              unitId: u['id'].toString(), 
+                              unitName: name, 
+                              defaultRent: (rent as num).toDouble()
+                            )
+                          )
+                        ).then((_) => fetchDashboardData());
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+    } catch (e) {
+       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error loading units: $e")));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -311,7 +387,6 @@ class _HomePageState extends State<HomePage> {
                               icon: Icons.account_balance_wallet_outlined,
                               color: Colors.purple,
                               width: itemWidth,
-                              // ✅ Updated Navigation: Go to Monthly Receivables Page
                               onTap: () => Navigator.push(
                                 context, 
                                 MaterialPageRoute(
@@ -404,6 +479,11 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
                         _buildActionButton(
+                          label: "Add Lease",
+                          icon: Icons.post_add,
+                          onTap: () => _showVacantUnitPicker(context),
+                        ),
+                        _buildActionButton(
                           label: "Create Invoice",
                           icon: Icons.receipt,
                           onTap: () {
@@ -418,6 +498,7 @@ class _HomePageState extends State<HomePage> {
                           icon: Icons.bar_chart,
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage())),
                         ),
+                        // ✅ Re-added Manage Leases Button
                         _buildActionButton(
                           label: "Manage Leases",
                           icon: Icons.description,
@@ -483,9 +564,6 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildRevenueItem(String title, String value, Color color) {
     return InkWell(
-      // ✅ Now tapping Revenue Card ALSO goes to Monthly Payments (optional, but logical)
-      // Or keep it to ReportsPage. Let's link it to Reports as before or MonthlyPaymentsPage if preferred.
-      // User didn't specify change for Revenue card, only Receivables. I'll keep Revenue linked to Reports.
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage())),
       child: Padding(
         padding: const EdgeInsets.all(16.0), 
