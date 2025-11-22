@@ -8,6 +8,9 @@ import 'units_page.dart';
 import 'reports_page.dart';
 import 'add_tenant_page.dart';
 import 'add_unit_page.dart';
+import 'leases_page.dart';
+import 'settings_page.dart';
+import 'invoices_page.dart'; // ✅ Import Invoices
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -204,7 +207,7 @@ class _HomePageState extends State<HomePage> {
                               icon: Icons.account_balance_wallet_outlined,
                               color: Colors.purple,
                               width: itemWidth,
-                              onTap: () {}, 
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoicesPage())), // Link to invoices
                             ),
                             _buildInfoCard(
                               title: "Revenue (Month)",
@@ -282,7 +285,7 @@ class _HomePageState extends State<HomePage> {
                               context,
                               MaterialPageRoute(builder: (_) => const AddTenantPage()),
                             );
-                            if (result == true) fetchDashboardData(); // Refresh if added
+                            if (result == true) fetchDashboardData(); 
                           },
                         ),
                         _buildActionButton(
@@ -314,7 +317,7 @@ class _HomePageState extends State<HomePage> {
                         _buildActionButton(
                           label: "Manage Leases",
                           icon: Icons.description,
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UnitsPage())), // Logic often starts from units
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeasesPage())),
                         ),
                       ],
                     ),
@@ -619,6 +622,22 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           ListTile(
+            leading: const Icon(Icons.receipt_long), // ✅ Added Invoices
+            title: const Text('Invoices'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const InvoicesPage()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.description), 
+            title: const Text('Lease Contracts'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const LeasesPage()));
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.bar_chart),
             title: const Text('Reports'),
             onTap: () {
@@ -632,6 +651,7 @@ class _HomePageState extends State<HomePage> {
             title: const Text('Settings'),
             onTap: () {
               Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())); 
             },
           ),
           ListTile(
