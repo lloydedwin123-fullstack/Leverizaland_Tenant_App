@@ -5,7 +5,12 @@ import '../widgets/property_card.dart';
 import 'unit_details_page.dart';
 
 class ReportsPage extends StatefulWidget {
-  const ReportsPage({super.key});
+  final int initialIndex; // ✅ Added parameter
+
+  const ReportsPage({
+    super.key, 
+    this.initialIndex = 0,
+  });
 
   @override
   State<ReportsPage> createState() => _ReportsPageState();
@@ -20,21 +25,23 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
 
   // ===== All Units tab =====
   bool isLoadingUnits = true;
-  List<Map<String, dynamic>> allUnits = [];          // raw units
-  Map<String, dynamic> perUnitExtras = {};           // unit_id -> {balance, minDue, maxDue}
+  List<Map<String, dynamic>> allUnits = [];          
+  Map<String, dynamic> perUnitExtras = {};           
   List<Map<String, dynamic>> filteredUnits = [];
   String unitsSearch = '';
 
   // ===== Arrears tab =====
   bool isLoadingArrears = true;
-  List<Map<String, dynamic>> arrearsPerUnit = [];    // rolled by unit_id
+  List<Map<String, dynamic>> arrearsPerUnit = [];    
   String arrearsSearch = '';
   List<Map<String, dynamic>> filteredArrears = [];
+  double totalArrearsSum = 0.0; 
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    // ✅ Use widget.initialIndex
+    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialIndex);
     _loadAllUnitsTab();
     _loadArrearsTab();
   }
@@ -57,7 +64,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
   Future<void> _loadAllUnitsTab() async {
     setState(() => isLoadingUnits = true);
     try {
-      // Units + tenant name
       final unitsRes = await supabase
           .from('units')
           .select('id, building, unit_number, current_rent_amount, tenants(name)')
@@ -65,7 +71,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
 
       final units = List<Map<String, dynamic>>.from(unitsRes);
 
-      // All unpaid balances grouped by unit_id for coverage and balance
       final ipsRes = await supabase
           .from('invoice_payment_status')
           .select('unit_id, balance, due_date, lease_status')
@@ -74,7 +79,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
 
       final ips = List<Map<String, dynamic>>.from(ipsRes);
 
-      // Build unit_id -> extras
       final Map<String, Map<String, dynamic>> extras = {};
       for (final r in ips) {
         final uid = (r['unit_id'] ?? '').toString();
@@ -98,7 +102,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
         }
       }
 
-      // Sort A–Z by building then unit_number
       units.sort((a, b) {
         final ab = (a['building'] ?? '').toString().compareTo((b['building'] ?? '').toString());
         if (ab != 0) return ab;
@@ -129,7 +132,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
         final r = (u['current_rent_amount'] ?? '').toString().toLowerCase();
         return b.contains(qq) || un.contains(qq) || t.contains(qq) || r.contains(qq);
       }).toList();
-      // Keep A–Z after each filter
       filteredUnits.sort((a, b) {
         final ab = (a['building'] ?? '').toString().compareTo((b['building'] ?? '').toString());
         if (ab != 0) return ab;
@@ -142,7 +144,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
   Future<void> _loadArrearsTab() async {
     setState(() => isLoadingArrears = true);
     try {
-      // Get all unpaid (active leases only), ordered by due date
       final ipsRes = await supabase
           .from('invoice_payment_status')
           .select('tenant_id, tenant_name, unit_id, building, unit_name, due_date, amount_due, total_paid, balance, lease_status')
@@ -156,12 +157,12 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
         setState(() {
           arrearsPerUnit = [];
           filteredArrears = [];
+          totalArrearsSum = 0.0;
           isLoadingArrears = false;
         });
         return;
       }
 
-      // Collect units for rent fallback and display
       final unitsRes = await supabase
           .from('units')
           .select('id, building, unit_number, current_rent_amount');
@@ -171,7 +172,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
         for (final u in units) (u['id']).toString(): u,
       };
 
-      // Get active leases to prefer lease.rent_amount
       final leasesRes = await supabase
           .from('leases')
           .select('id, unit_id, status, rent_amount')
@@ -185,14 +185,14 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
         if (ra > 0) rentByUnitId[uid] = ra;
       }
 
-      // Group IPS rows by unit_id
       final Map<String, List<Map<String, dynamic>>> byUnit = {};
       for (final row in ips) {
         final uid = (row['unit_id']).toString();
         (byUnit[uid] ??= []).add(row);
       }
 
-      // Build rolled rows
+      double globalSum = 0.0;
+
       final List<Map<String, dynamic>> rolled = [];
       for (final entry in byUnit.entries) {
         final unitId = entry.key;
@@ -206,7 +206,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
         final unitName = (rows.first['unit_name'] ?? '').toString();
         final tenantName = (rows.first['tenant_name'] ?? '').toString();
 
-        // total balance
         double totalBal = 0;
         DateTime? firstDue;
         DateTime? lastDue;
@@ -218,8 +217,8 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
             lastDue = d;
           }
         }
+        globalSum += totalBal;
 
-        // coverage
         String coverageText = '-';
         if (firstDue != null && lastDue != null) {
           if (firstDue.year == lastDue.year && firstDue.month == lastDue.month) {
@@ -229,7 +228,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
           }
         }
 
-        // rent
         double rent = 0.0;
         if (rentByUnitId.containsKey(unitId)) {
           rent = rentByUnitId[unitId]!;
@@ -249,7 +247,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
         });
       }
 
-      // sort by building then unit
       rolled.sort((a, b) {
         final ab = (a['building'] ?? '').toString().compareTo((b['building'] ?? '').toString());
         if (ab != 0) return ab;
@@ -259,6 +256,7 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
       setState(() {
         arrearsPerUnit = rolled;
         filteredArrears = List<Map<String, dynamic>>.from(rolled);
+        totalArrearsSum = globalSum;
         isLoadingArrears = false;
       });
     } catch (e) {
@@ -270,26 +268,33 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
 
   void _filterArrears(String q) {
     final qq = q.toLowerCase();
+    final filtered = arrearsPerUnit.where((row) {
+      final building = (row['building'] ?? '').toString().toLowerCase();
+      final unitName = (row['unit_name'] ?? '').toString().toLowerCase();
+      final tenant = (row['tenant_name'] ?? '').toString().toLowerCase();
+      final rent = (row['rent_amount'] ?? '').toString().toLowerCase();
+      final bal = (row['total_balance'] ?? '').toString().toLowerCase();
+      final cov = (row['coverage'] ?? '').toString().toLowerCase();
+      return building.contains(qq) ||
+          unitName.contains(qq) ||
+          tenant.contains(qq) ||
+          rent.contains(qq) ||
+          bal.contains(qq) ||
+          cov.contains(qq);
+    }).toList();
+
+    double filteredSum = 0.0;
+    for(var row in filtered) {
+      filteredSum += toDouble(row['total_balance']);
+    }
+
     setState(() {
       arrearsSearch = q;
-      filteredArrears = arrearsPerUnit.where((row) {
-        final building = (row['building'] ?? '').toString().toLowerCase();
-        final unitName = (row['unit_name'] ?? '').toString().toLowerCase();
-        final tenant = (row['tenant_name'] ?? '').toString().toLowerCase();
-        final rent = (row['rent_amount'] ?? '').toString().toLowerCase();
-        final bal = (row['total_balance'] ?? '').toString().toLowerCase();
-        final cov = (row['coverage'] ?? '').toString().toLowerCase();
-        return building.contains(qq) ||
-            unitName.contains(qq) ||
-            tenant.contains(qq) ||
-            rent.contains(qq) ||
-            bal.contains(qq) ||
-            cov.contains(qq);
-      }).toList();
+      filteredArrears = filtered;
+      totalArrearsSum = filteredSum;
     });
   }
 
-  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -328,7 +333,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
       onRefresh: _loadAllUnitsTab,
       child: Column(
         children: [
-          // search
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: TextField(
@@ -353,7 +357,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
                 final tenantName = (u['tenants']?['name'] ?? 'Vacant').toString();
                 final rent = currency.format(toDouble(u['current_rent_amount']));
 
-                // extras
                 String? coverageText;
                 String? balanceText;
                 final ex = perUnitExtras[unitId];
@@ -371,7 +374,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
                   }
                 }
 
-                // hide balance if Vacant
                 if (tenantName.trim().toLowerCase() == 'vacant') {
                   balanceText = null;
                   coverageText = null;
@@ -414,21 +416,80 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
       onRefresh: _loadArrearsTab,
       child: Column(
         children: [
-          // search
+          // ✅ Sticky Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.account_balance_wallet_outlined, color: Colors.grey, size: 18),
+                      SizedBox(width: 8),
+                      Text(
+                        "TOTAL OUTSTANDING",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.0,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    currency.format(totalArrearsSum),
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF212121), 
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
               onChanged: _filterArrears,
               decoration: InputDecoration(
-                hintText: 'Search building, unit, tenant, balance, coverage…',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                hintText: 'Search arrears...',
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
               ),
             ),
           ),
+          
+          const SizedBox(height: 4),
+          
           Expanded(
             child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               itemCount: filteredArrears.length,
               itemBuilder: (context, i) {
                 final row = filteredArrears[i];
