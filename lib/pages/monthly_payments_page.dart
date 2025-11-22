@@ -39,10 +39,9 @@ class _MonthlyPaymentsPageState extends State<MonthlyPaymentsPage> {
       final startStr = DateFormat('yyyy-MM-dd').format(startOfMonth);
       final endStr = DateFormat('yyyy-MM-dd').format(startOfNextMonth);
 
-      // ✅ FIXED QUERY: Join 'tenants' via 'tenant_id'
       final response = await supabase
           .from('payments')
-          .select('*, tenants(name)') // This fetches the name using the FK
+          .select('*, tenants(name)')
           .gte('payment_date', startStr)
           .lt('payment_date', endStr)
           .order('payment_date', ascending: false);
@@ -80,68 +79,64 @@ class _MonthlyPaymentsPageState extends State<MonthlyPaymentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(monthTitleFmt.format(currentMonth)),
+        title: Text("Payments: ${monthTitleFmt.format(currentMonth)}"),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: currentMonth,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now().add(const Duration(days: 365)),
-              );
-              if (picked != null) {
-                setState(() => currentMonth = picked);
-                fetchPayments();
-              }
-            },
-          )
-        ],
       ),
       body: Column(
         children: [
+          // Summary Header
           Container(
-            color: Colors.white,
             padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
+            ),
             child: Column(
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.chevron_left),
+                      icon: Icon(Icons.chevron_left, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                       onPressed: () => _changeMonth(-1),
                     ),
-                    Text(
-                      currency.format(totalCollected),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
+                    Column(
+                      children: [
+                         Text(
+                          currency.format(totalCollected),
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary, // Use theme's primary color
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Total Collected this Month",
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6), 
+                            fontSize: 12, 
+                            fontWeight: FontWeight.bold
+                          ),
+                        ),
+                      ],
                     ),
                     IconButton(
-                      icon: const Icon(Icons.chevron_right),
+                      icon: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                       onPressed: () => _changeMonth(1),
                     ),
                   ],
                 ),
-                const Text(
-                  "Total Collected",
-                  style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
               ],
             ),
           ),
-          const Divider(height: 1),
           
+          // List of Payments
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : payments.isEmpty
-                    ? const Center(child: Text("No payments received this month."))
+                    ? Center(child: Text("No payments received this month.", style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6))))
                     : ListView.builder(
                         itemCount: payments.length,
                         itemBuilder: (context, index) {
@@ -151,7 +146,6 @@ class _MonthlyPaymentsPageState extends State<MonthlyPaymentsPage> {
                               ? dateFmt.format(DateTime.parse(p['payment_date']))
                               : '-';
                           
-                          // ✅ Correctly extract name from joined object
                           String tenantName = 'Unknown Tenant';
                           if (p['tenants'] != null) {
                             tenantName = p['tenants']['name'] ?? 'Unknown Tenant';
@@ -162,10 +156,11 @@ class _MonthlyPaymentsPageState extends State<MonthlyPaymentsPage> {
                           return Card(
                             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             elevation: 1,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Colors.blue[50],
-                                child: const Icon(Icons.payment, color: Colors.blue, size: 20),
+                                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                child: Icon(Icons.receipt_long, color: Theme.of(context).colorScheme.primary, size: 20),
                               ),
                               title: Text(tenantName, style: const TextStyle(fontWeight: FontWeight.w600)),
                               subtitle: Text("$dateStr • $method"),

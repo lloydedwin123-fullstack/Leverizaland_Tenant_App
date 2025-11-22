@@ -57,9 +57,8 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
 
   Future<void> _pickAndUploadFile() async {
     try {
-      // Use the new, unified picker from the service
       final File? file = await fileService.pickFile(context);
-      if (file == null) return; // User canceled the picker
+      if (file == null) return;
 
       if (mounted) {
         final fileName = file.path.split('/').last;
@@ -159,7 +158,7 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
                 ),
                 if (widget.canEdit)
                   IconButton(
-                    icon: const Icon(Icons.upload_file, color: Colors.blue),
+                    icon: Icon(Icons.upload_file, color: Theme.of(context).colorScheme.primary), // ✅ Themed color
                     tooltip: 'Attach New File',
                     onPressed: _pickAndUploadFile,
                   ),
@@ -167,11 +166,11 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
             ),
             const SizedBox(height: 8),
             if (_files.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   'No attached files found.',
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)), // ✅ Themed color
                 ),
               )
             else
@@ -188,14 +187,14 @@ class _FileSectionWidgetState extends State<FileSectionWidget> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: ListTile(
-                      leading: const Icon(Icons.attach_file, color: Colors.blue),
+                      leading: Icon(Icons.attach_file, color: Theme.of(context).colorScheme.primary), // ✅ Themed color
                       title: Text(
                         fileName,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       trailing: widget.canEdit
                           ? IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
+                              icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error), // ✅ Themed color
                               onPressed: () => _deleteFile(fileId, fileName, fileUrl),
                             )
                           : null,

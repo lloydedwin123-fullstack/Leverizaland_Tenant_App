@@ -36,9 +36,6 @@ class _HomePageState extends State<HomePage> {
   double totalReceivables = 0.0;
   double targetMonthlyRent = 0.0;
   
-  double receivablesActive = 0.0;
-  double receivablesAll = 0.0;
-  
   // Revenue Metrics
   double revenueThisMonth = 0.0;
   double revenueYTD = 0.0;
@@ -203,7 +200,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // ✅ Show Vacant Unit Picker for Creating Lease
   Future<void> _showVacantUnitPicker(BuildContext context) async {
     try {
        final activeLeases = await supabase
@@ -288,7 +284,6 @@ class _HomePageState extends State<HomePage> {
     else if (screenWidth < 350) crossAxisCount = 1; 
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3E5F5),
       appBar: AppBar(
         title: const Text(
           "Dashboard",
@@ -317,20 +312,13 @@ class _HomePageState extends State<HomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Welcome to Leverizaland Inc.",
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueGrey[900],
-                      ),
+                      "Leverizaland Incorporated",
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       "Here is what's happening today.",
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.blueGrey[600],
-                      ),
+                      style: Theme.of(context).textTheme.bodyLarge,
                     ),
                     const SizedBox(height: 24),
 
@@ -405,11 +393,7 @@ class _HomePageState extends State<HomePage> {
 
                     Text(
                       "Analytics",
-                      style: TextStyle(
-                        fontSize: 18, 
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blueGrey[800]
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
                     LayoutBuilder(
@@ -445,11 +429,7 @@ class _HomePageState extends State<HomePage> {
 
                     Text(
                       "Quick Actions",
-                      style: TextStyle(
-                        fontSize: 18, 
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blueGrey[800]
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
                     Wrap(
@@ -498,7 +478,6 @@ class _HomePageState extends State<HomePage> {
                           icon: Icons.bar_chart,
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage())),
                         ),
-                        // ✅ Re-added Manage Leases Button
                         _buildActionButton(
                           label: "Manage Leases",
                           icon: Icons.description,
@@ -515,16 +494,16 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildSlideableRevenueCard(double width) {
     const color = Colors.green;
-
+    
     return SizedBox(
       width: width,
       height: 125, 
       child: Card(
-        elevation: 2,
-        shadowColor: Colors.black12,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: Colors.white,
-        surfaceTintColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
+        ),
         clipBehavior: Clip.antiAlias,
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
@@ -597,21 +576,13 @@ class _HomePageState extends State<HomePage> {
               alignment: Alignment.centerLeft,
               child: Text(
                 value,
-                style: TextStyle(
-                  fontSize: 20, 
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blueGrey[900],
-                ),
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(height: 2),
             Text(
               title,
-              style: TextStyle(
-                fontSize: 12, 
-                color: Colors.blueGrey[500],
-                fontWeight: FontWeight.w500,
-              ),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
@@ -625,7 +596,7 @@ class _HomePageState extends State<HomePage> {
       height: 6,
       width: isActive ? 12 : 6,
       decoration: BoxDecoration(
-        color: isActive ? Colors.green : Colors.grey[300],
+        color: isActive ? Colors.green : Theme.of(context).colorScheme.onSurface.withOpacity(0.2), 
         borderRadius: BorderRadius.circular(3),
       ),
     );
@@ -643,11 +614,11 @@ class _HomePageState extends State<HomePage> {
       width: width, 
       height: 125, 
       child: Card(
-        elevation: 2,
-        shadowColor: Colors.black12,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: Colors.white,
-        surfaceTintColor: Colors.white, 
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
+        ),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
@@ -668,7 +639,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Icon(icon, color: color, size: 20),
                     ),
-                    Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey[400]),
+                    Icon(Icons.arrow_forward_ios, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)), 
                   ],
                 ),
                 const Spacer(), 
@@ -677,21 +648,13 @@ class _HomePageState extends State<HomePage> {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     value,
-                    style: TextStyle(
-                      fontSize: 20, 
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blueGrey[900],
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 12, 
-                    color: Colors.blueGrey[500],
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
@@ -701,39 +664,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _showComingSoonDialog(BuildContext context, String feature) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(feature),
-        content: const Text("This feature will be available in the next update. Please use the database or list pages for now."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("OK"),
-          )
-        ],
-      ),
-    );
-  }
-
   Widget _buildRevenueChart() {
     double maxValue = monthlyRevenue.reduce((a, b) => a > b ? a : b);
     double maxY = maxValue == 0 ? 10000 : maxValue * 1.2;
 
     return Card(
-      elevation: 2,
-      color: Colors.white,
-      surfaceTintColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Monthly Revenue (Last 12 Months)", 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
             AspectRatio(
@@ -741,6 +689,19 @@ class _HomePageState extends State<HomePage> {
               child: BarChart(
                 BarChartData(
                   barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      tooltipBgColor: Theme.of(context).colorScheme.primary,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final amount = currency.format(rod.toY);
+                        return BarTooltipItem(
+                          amount,
+                          TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
+                    ),
                     touchCallback: (FlTouchEvent event, barTouchResponse) {
                       if (!event.isInterestedForInteractions ||
                           barTouchResponse == null ||
@@ -770,11 +731,7 @@ class _HomePageState extends State<HomePage> {
                         showTitles: true,
                         interval: 1, 
                         getTitlesWidget: (double value, TitleMeta meta) {
-                          const style = TextStyle(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10, 
-                          );
+                          TextStyle style = Theme.of(context).textTheme.bodySmall!;
                           if (value.toInt() >= 0 && value.toInt() < monthLabels.length) {
                              return SideTitleWidget(
                               axisSide: meta.axisSide,
@@ -794,7 +751,7 @@ class _HomePageState extends State<HomePage> {
                           if (value == 0) return const SizedBox();
                           return Text(
                             NumberFormat.compact().format(value), 
-                            style: const TextStyle(color: Colors.grey, fontSize: 10)
+                            style: Theme.of(context).textTheme.bodySmall,
                           );
                         }
                       )
@@ -803,20 +760,29 @@ class _HomePageState extends State<HomePage> {
                     rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
                   borderData: FlBorderData(show: false),
-                  gridData: FlGridData(show: true, drawVerticalLine: false),
+                  gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: maxY / 5, 
+                  getDrawingHorizontalLine: (value) => FlLine(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1), strokeWidth: 1), 
+                  ),
                   barGroups: monthlyRevenue.asMap().entries.map((entry) {
                     return BarChartGroupData(
                       x: entry.key,
                       barRods: [
                         BarChartRodData(
                           toY: entry.value,
-                          color: Colors.blueAccent,
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.primaryContainer,
+                            ],
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                          ),
                           width: 12, 
                           borderRadius: BorderRadius.circular(2),
                           backDrawRodData: BackgroundBarChartRodData(
                             show: true,
                             toY: maxY,
-                            color: Colors.grey.withOpacity(0.1),
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
                           ),
                         )
                       ],
@@ -833,8 +799,8 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildOccupancyChart() {
     if (occupiedUnits == 0 && vacantUnits == 0) {
-      return const Card(
-        child: Padding(
+      return Card(
+        child: const Padding(
           padding: EdgeInsets.all(20),
           child: Center(child: Text("No Unit Data Available")),
         ),
@@ -842,18 +808,19 @@ class _HomePageState extends State<HomePage> {
     }
 
     return Card(
-      elevation: 2,
-      color: Colors.white,
-      surfaceTintColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Occupancy Rate",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
             AspectRatio(
@@ -864,18 +831,23 @@ class _HomePageState extends State<HomePage> {
                   centerSpaceRadius: 40,
                   sections: [
                     PieChartSectionData(
-                      color: Colors.green,
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context).colorScheme.primary,
+                          Theme.of(context).colorScheme.primaryContainer,
+                        ],
+                      ),
                       value: occupiedUnits.toDouble(),
                       title: '$occupiedUnits',
                       radius: 50,
                       titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     PieChartSectionData(
-                      color: Colors.redAccent,
+                      color: Theme.of(context).colorScheme.error, // ✅ More vibrant red
                       value: vacantUnits.toDouble(),
                       title: '$vacantUnits',
                       radius: 50,
-                      titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      titleStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onError),
                     ),
                   ],
                 ),
@@ -885,9 +857,9 @@ class _HomePageState extends State<HomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildLegend(color: Colors.green, text: "Occupied"),
+                _buildLegend(color: Theme.of(context).colorScheme.primary, text: "Occupied"), 
                 const SizedBox(width: 16),
-                _buildLegend(color: Colors.redAccent, text: "Vacant"),
+                _buildLegend(color: Theme.of(context).colorScheme.error, text: "Vacant"), 
               ],
             ),
           ],
@@ -905,7 +877,7 @@ class _HomePageState extends State<HomePage> {
           decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(text, style: Theme.of(context).textTheme.bodySmall), 
       ],
     );
   }
@@ -937,22 +909,22 @@ class _HomePageState extends State<HomePage> {
               "Leverizaland Inc.",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            accountEmail: const Text("admin@leverizaland.com"),
+            accountEmail: const Text("leverizalandinc@gmail.com"),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
               child: Text(
                 "L",
-                style: TextStyle(fontSize: 24, color: Colors.blue[800]),
+                style: TextStyle(fontSize: 24, color: Theme.of(context).colorScheme.primary), 
               ),
             ),
             decoration: BoxDecoration(
-              color: Colors.blue[800],
-              image: const DecorationImage(
-                image: NetworkImage(
+              color: Theme.of(context).colorScheme.primary, 
+              image: DecorationImage(
+                image: const NetworkImage(
                   "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80",
                 ),
                 fit: BoxFit.cover,
-                opacity: 0.3,
+                opacity: Theme.of(context).brightness == Brightness.dark ? 0.1 : 0.3, 
               ),
             ),
           ),
@@ -999,7 +971,6 @@ class _HomePageState extends State<HomePage> {
             leading: const Icon(Icons.bar_chart),
             title: const Text('Reports'),
             onTap: () {
-              Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage()));
             },
           ),
@@ -1012,18 +983,19 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())); 
             },
           ),
+          // ✅ Disabled Logout Button
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Logout', style: TextStyle(color: Colors.red)),
-            onTap: () async {
-              Navigator.pop(context);
-            },
+            enabled: false,
+            leading: const Icon(Icons.logout),
+            title: const Text('Logout'),
+            subtitle: const Text('User accounts coming soon'),
+            onTap: () {},
           ),
           const SizedBox(height: 20),
           const Padding(
             padding: EdgeInsets.only(left: 16.0),
             child: Text(
-              "v0.2 MVP",
+              "v2.6 MVP",
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),

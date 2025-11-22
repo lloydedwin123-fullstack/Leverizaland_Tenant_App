@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 class PropertyCard extends StatelessWidget {
-  final String title;                // e.g., "Opal 1" or "ADL Building"
-  final String tenantName;           // "Vacant" or actual name
-  final String rentText;             // formatted "₱.."
-  final String? balanceText;         // formatted "₱.." (null to hide)
-  final String? coverageText;        // e.g., "January to March 2025"
+  final String title;
+  final String tenantName;
+  final String rentText;
+  final String? balanceText;
+  final String? coverageText;
   final VoidCallback? onTap;
 
   const PropertyCard({
@@ -20,9 +20,8 @@ class PropertyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color? balanceColor = (balanceText == null)
-        ? null
-        : const Color(0xFFB33A3A); // soft, non-irritating red
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -37,29 +36,58 @@ class PropertyCard extends StatelessWidget {
               // Title
               Text(
                 title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               // Tenant
-              Text('Tenant: $tenantName'),
+              _buildInfoRow(context, Icons.person, 'Tenant:', tenantName),
+              const SizedBox(height: 4),
               // Rent
-              Text('Rent Amount: $rentText'),
+              _buildInfoRow(context, Icons.payment, 'Rent Amount:', rentText),
+              const SizedBox(height: 4),
               // Balance (optional)
               if (balanceText != null)
-                Text(
-                  'Balance: $balanceText',
-                  style: TextStyle(
-                    color: balanceColor,
-                    fontWeight: FontWeight.w700, // slightly bolder than normal
-                  ),
+                _buildInfoRow(
+                  context,
+                  Icons.warning_amber_rounded,
+                  'Balance:',
+                  balanceText!,
+                  valueColor: colorScheme.error,
                 ),
               // Coverage (optional)
               if (coverageText != null && coverageText!.trim().isNotEmpty)
-                Text('Coverage: $coverageText'),
+                _buildInfoRow(context, Icons.date_range, 'Coverage:', coverageText!),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value, {Color? valueColor}) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 14, color: colorScheme.onSurface.withOpacity(0.6)),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurface.withOpacity(0.6)),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            value,
+            style: textTheme.bodyMedium?.copyWith(
+              fontWeight: valueColor != null ? FontWeight.bold : FontWeight.normal,
+              color: valueColor ?? colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

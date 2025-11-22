@@ -5,7 +5,7 @@ import '../widgets/property_card.dart';
 import 'unit_details_page.dart';
 
 class ReportsPage extends StatefulWidget {
-  final int initialIndex; // ✅ Added parameter
+  final int initialIndex; 
 
   const ReportsPage({
     super.key, 
@@ -40,7 +40,6 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    // ✅ Use widget.initialIndex
     _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialIndex);
     _loadAllUnitsTab();
     _loadArrearsTab();
@@ -416,19 +415,18 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
       onRefresh: _loadArrearsTab,
       child: Column(
         children: [
-          // ✅ Sticky Header
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor, // ✅ Themed color
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: Theme.of(context).dividerColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.grey.withOpacity(0.05),
+                    color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.2 : 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -437,17 +435,17 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.account_balance_wallet_outlined, color: Colors.grey, size: 18),
-                      SizedBox(width: 8),
+                      Icon(Icons.account_balance_wallet_outlined, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6), size: 18),
+                      const SizedBox(width: 8),
                       Text(
                         "TOTAL OUTSTANDING",
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 1.0,
-                          color: Colors.grey,
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                         ),
                       ),
                     ],
@@ -455,11 +453,10 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
                   const SizedBox(height: 8),
                   Text(
                     currency.format(totalArrearsSum),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF212121), 
-                      letterSpacing: -0.5,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -473,9 +470,9 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
               onChanged: _filterArrears,
               decoration: InputDecoration(
                 hintText: 'Search arrears...',
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                prefixIcon: Icon(Icons.search, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5), // ✅ Themed search bar
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,

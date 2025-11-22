@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'unit_details_page.dart'; // ✅ Import our details page
+import 'unit_details_page.dart';
 
 class UnitsPage extends StatefulWidget {
   const UnitsPage({super.key});
@@ -194,8 +194,8 @@ class _UnitsPageState extends State<UnitsPage> {
                               style: TextStyle(
                                 fontSize: 14,
                                 color: tenantName == "Vacant"
-                                    ? Colors.red[700]
-                                    : Colors.black87,
+                                    ? Theme.of(context).colorScheme.error // Use theme's error color
+                                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.7), // ✅ Themed color
                                 fontWeight: tenantName ==
                                     "Vacant"
                                     ? FontWeight.bold
