@@ -6,6 +6,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'tenants_page.dart';
 import 'units_page.dart';
 import 'reports_page.dart';
+import 'add_tenant_page.dart';
+import 'add_unit_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -275,12 +277,24 @@ class _HomePageState extends State<HomePage> {
                         _buildActionButton(
                           label: "Add Tenant",
                           icon: Icons.person_add,
-                          onTap: () => _showComingSoonDialog(context, "Add Tenant"),
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AddTenantPage()),
+                            );
+                            if (result == true) fetchDashboardData(); // Refresh if added
+                          },
                         ),
                         _buildActionButton(
                           label: "Add Unit",
                           icon: Icons.add_home,
-                          onTap: () => _showComingSoonDialog(context, "Add Unit"),
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AddUnitPage()),
+                            );
+                            if (result == true) fetchDashboardData();
+                          },
                         ),
                         _buildActionButton(
                           label: "Create Invoice",
