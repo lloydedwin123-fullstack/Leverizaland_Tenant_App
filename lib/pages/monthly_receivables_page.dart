@@ -95,6 +95,7 @@ class _MonthlyReceivablesPageState extends State<MonthlyReceivablesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text("Receivables: ${monthTitleFmt.format(currentMonth)}"),
         centerTitle: true,
@@ -118,7 +119,7 @@ class _MonthlyReceivablesPageState extends State<MonthlyReceivablesPage> {
       ),
       body: Column(
         children: [
-          // Header
+          // Summary Header
           Container(
             padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
             decoration: BoxDecoration(
@@ -261,7 +262,14 @@ class _MonthlyReceivablesPageState extends State<MonthlyReceivablesPage> {
                                   children: [
                                     Icon(Icons.home_work_outlined, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                                     const SizedBox(width: 4),
-                                    Text(unitName, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8))),
+                                    // ✅ Wrapped with Expanded
+                                    Expanded(
+                                      child: Text(
+                                        unitName, 
+                                        style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8)),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                     const SizedBox(width: 12),
                                     Icon(Icons.calendar_today, size: 14, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6)),
                                     const SizedBox(width: 4),

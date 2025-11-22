@@ -473,16 +473,6 @@ class _HomePageState extends State<HomePage> {
                              );
                           },
                         ),
-                        _buildActionButton(
-                          label: "View Reports",
-                          icon: Icons.bar_chart,
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage())),
-                        ),
-                        _buildActionButton(
-                          label: "Manage Leases",
-                          icon: Icons.description,
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeasesPage())),
-                        ),
                       ],
                     ),
                   ],
@@ -684,11 +674,12 @@ class _HomePageState extends State<HomePage> {
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
-            AspectRatio(
-              aspectRatio: 1.6,
+            SizedBox( 
+              height: 200,
               child: BarChart(
                 BarChartData(
                   barTouchData: BarTouchData(
+                    longPressDuration: const Duration(milliseconds: 1500), 
                     touchTooltipData: BarTouchTooltipData(
                       tooltipBgColor: Theme.of(context).colorScheme.primary,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -708,7 +699,8 @@ class _HomePageState extends State<HomePage> {
                           barTouchResponse.spot == null) {
                         return;
                       }
-                      if (event is FlTapUpEvent) { 
+                      
+                      if (event is FlTapUpEvent || event is FlLongPressEnd) { 
                         final index = barTouchResponse.spot!.touchedBarGroupIndex;
                         final now = DateTime.now();
                         final targetMonth = DateTime(now.year, now.month - 11 + index, 1);
@@ -777,8 +769,8 @@ class _HomePageState extends State<HomePage> {
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                           ),
-                          width: 12, 
-                          borderRadius: BorderRadius.circular(2),
+                          width: 16,
+                          borderRadius: BorderRadius.circular(4),
                           backDrawRodData: BackgroundBarChartRodData(
                             show: true,
                             toY: maxY,
@@ -843,7 +835,7 @@ class _HomePageState extends State<HomePage> {
                       titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     PieChartSectionData(
-                      color: Theme.of(context).colorScheme.error, // ✅ More vibrant red
+                      color: Theme.of(context).colorScheme.error,
                       value: vacantUnits.toDouble(),
                       title: '$vacantUnits',
                       radius: 50,
@@ -909,7 +901,7 @@ class _HomePageState extends State<HomePage> {
               "Leverizaland Inc.",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            accountEmail: const Text("leverizalandinc@gmail.com"),
+            accountEmail: const Text("admin@leverizaland.com"),
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
               child: Text(
@@ -974,6 +966,17 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage()));
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.calendar_month),
+            title: const Text('Monthly Payments'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => MonthlyPaymentsPage(initialMonth: DateTime.now())),
+              );
+            },
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
@@ -983,7 +986,6 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())); 
             },
           ),
-          // ✅ Disabled Logout Button
           ListTile(
             enabled: false,
             leading: const Icon(Icons.logout),
