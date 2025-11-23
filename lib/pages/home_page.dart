@@ -16,9 +16,7 @@ import 'vacant_units_page.dart';
 import 'monthly_payments_page.dart';
 import 'monthly_receivables_page.dart';
 import 'add_lease_page.dart';
-// import 'kanban_page.dart'; // Removed Kanban Page import
-import '/pages/tasks_page.dart';
-
+import 'tasks_page.dart'; // ✅ Import Tasks Page
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -38,14 +36,20 @@ class _HomePageState extends State<HomePage> {
   int vacantUnits = 0;
   double totalReceivables = 0.0;
   double targetMonthlyRent = 0.0;
-
+  
+  double receivablesActive = 0.0;
+  double receivablesAll = 0.0;
+  
   // Revenue Metrics
   double revenueThisMonth = 0.0;
   double revenueYTD = 0.0;
 
+  // Task Metrics
+  int pendingTasksCount = 0; 
+
   // Chart Data
-  List<double> monthlyRevenue = List.filled(12, 0.0);
-  List<String> monthLabels = List.filled(12, '');
+  List<double> monthlyRevenue = List.filled(12, 0.0); 
+  List<String> monthLabels = List.filled(12, ''); 
   int occupiedUnits = 0;
 
   final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
@@ -69,12 +73,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _startRevenueTimer() {
-    _stopRevenueTimer();
-    _revenueTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+    _stopRevenueTimer(); 
+    _revenueTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
       if (_revenuePageController.hasClients) {
         _revenuePageController.nextPage(
-          duration: const Duration(milliseconds: 800),
-          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 800), 
+          curve: Curves.easeInOut, 
         );
       }
     });
@@ -95,7 +99,7 @@ class _HomePageState extends State<HomePage> {
           .from('leases')
           .count()
           .eq('status', 'Active');
-
+      
       final calculatedVacant = unitsCount - activeLeasesCount;
       final calculatedOccupied = activeLeasesCount;
 
@@ -103,7 +107,7 @@ class _HomePageState extends State<HomePage> {
           .from('leases')
           .select('rent_amount')
           .eq('status', 'Active');
-
+      
       double targetRentSum = 0.0;
       for(var l in activeLeasesRes) {
         targetRentSum += (l['rent_amount'] ?? 0.0) as num;
@@ -114,17 +118,23 @@ class _HomePageState extends State<HomePage> {
           .select('balance')
           .gt('balance', 0)
           .eq('lease_status', 'Active');
-
+      
       double activeRecSum = 0.0;
       for (var r in activeRecRes) {
         activeRecSum += (r['balance'] ?? 0.0) as num;
       }
 
+      // ✅ Fetch Pending Tasks Count
+      final tasksCount = await supabase
+          .from('tasks')
+          .count()
+          .eq('completed', false);
+
       final now = DateTime.now();
       final startOfMonth = DateTime(now.year, now.month, 1);
       final startNextMonth = DateTime(now.year, now.month + 1, 1);
       final startOfYear = DateTime(now.year, 1, 1);
-
+      
       final startMonthStr = DateFormat('yyyy-MM-dd').format(startOfMonth);
       final endMonthStr = DateFormat('yyyy-MM-dd').format(startNextMonth);
       final startYearStr = DateFormat('yyyy-MM-dd').format(startOfYear);
@@ -186,12 +196,13 @@ class _HomePageState extends State<HomePage> {
         totalUnits = unitsCount;
         vacantUnits = calculatedVacant < 0 ? 0 : calculatedVacant;
         occupiedUnits = calculatedOccupied;
-        totalReceivables = activeRecSum;
-        targetMonthlyRent = targetRentSum;
+        totalReceivables = activeRecSum; 
+        targetMonthlyRent = targetRentSum; 
         revenueThisMonth = revMonthSum;
-        revenueYTD = revYearSum;
+        revenueYTD = revYearSum; 
         monthlyRevenue = revenueHistory;
         monthLabels = labels;
+        pendingTasksCount = tasksCount; // ✅ Set Task Count
         isLoading = false;
       });
 
@@ -205,7 +216,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _showVacantUnitPicker(BuildContext context) async {
     try {
-      final activeLeases = await supabase
+       final activeLeases = await supabase
           .from('leases')
           .select('unit_id')
           .eq('status', 'Active');
@@ -215,13 +226,13 @@ class _HomePageState extends State<HomePage> {
           .from('units')
           .select('id, building, unit_number, current_rent_amount')
           .order('building');
-
+      
       final vacantUnits = List<Map<String, dynamic>>.from(unitsRes)
           .where((u) => !occupiedIds.contains(u['id']))
           .toList();
 
       if (!mounted) return;
-
+      
       if (vacantUnits.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No vacant units available!")));
         return;
@@ -245,22 +256,22 @@ class _HomePageState extends State<HomePage> {
                     final u = vacantUnits[i];
                     final name = "${u['building']} ${u['unit_number'] ?? ''}";
                     final rent = u['current_rent_amount'] ?? 0.0;
-
+                    
                     return ListTile(
                       leading: const Icon(Icons.meeting_room_outlined, color: Colors.green),
                       title: Text(name),
                       subtitle: Text("Rent: ₱$rent"),
                       onTap: () {
-                        Navigator.pop(ctx);
+                        Navigator.pop(ctx); 
                         Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => AddLeasePage(
-                                    unitId: u['id'].toString(),
-                                    unitName: name,
-                                    defaultRent: (rent as num).toDouble()
-                                )
+                          context, 
+                          MaterialPageRoute(
+                            builder: (_) => AddLeasePage(
+                              unitId: u['id'].toString(), 
+                              unitName: name, 
+                              defaultRent: (rent as num).toDouble()
                             )
+                          )
                         ).then((_) => fetchDashboardData());
                       },
                     );
@@ -273,18 +284,18 @@ class _HomePageState extends State<HomePage> {
       );
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error loading units: $e")));
+       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error loading units: $e")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-
-    int crossAxisCount = 2;
+    
+    int crossAxisCount = 2; 
     if (screenWidth > 1100) crossAxisCount = 4;
-    else if (screenWidth > 800) crossAxisCount = 3;
-    else if (screenWidth < 350) crossAxisCount = 1;
+    else if (screenWidth > 800) crossAxisCount = 3; 
+    else if (screenWidth < 350) crossAxisCount = 1; 
 
     return Scaffold(
       appBar: AppBar(
@@ -308,178 +319,242 @@ class _HomePageState extends State<HomePage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-        onRefresh: fetchDashboardData,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+              onRefresh: fetchDashboardData,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Welcome to Leverizaland Inc.",
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Here is what's happening today.",
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 24),
+
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double spacing = 12.0; 
+                        double usableWidth = constraints.maxWidth;
+                        if (usableWidth == double.infinity) usableWidth = screenWidth - 32; 
+
+                        final double totalSpacing = spacing * (crossAxisCount - 1);
+                        final double itemWidth = (usableWidth - totalSpacing) / crossAxisCount;
+                        
+                        return Wrap(
+                          spacing: spacing,
+                          runSpacing: spacing,
+                          children: [
+                            _buildInfoCard(
+                              title: "Total Tenants",
+                              value: "$totalTenants",
+                              icon: Icons.people_alt_outlined,
+                              color: Colors.blue,
+                              width: itemWidth,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TenantsPage())),
+                            ),
+                            _buildInfoCard(
+                              title: "Total Units",
+                              value: "$totalUnits",
+                              icon: Icons.apartment_outlined,
+                              color: Colors.orange,
+                              width: itemWidth,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UnitsPage())),
+                            ),
+                            _buildInfoCard(
+                              title: "Vacant Units",
+                              value: "$vacantUnits",
+                              icon: Icons.meeting_room_outlined,
+                              color: Colors.redAccent,
+                              width: itemWidth,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VacantUnitsPage())),
+                            ),
+                            
+                            _buildInfoCard(
+                              title: "Target Monthly Rent",
+                              value: currency.format(targetMonthlyRent),
+                              icon: Icons.price_check, 
+                              color: Colors.teal,
+                              width: itemWidth,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeasesPage())),
+                            ),
+
+                            _buildInfoCard(
+                              title: "Receivables (Active)",
+                              value: currency.format(totalReceivables),
+                              icon: Icons.account_balance_wallet_outlined,
+                              color: Colors.purple,
+                              width: itemWidth,
+                              onTap: () => Navigator.push(
+                                context, 
+                                MaterialPageRoute(
+                                  builder: (_) => MonthlyReceivablesPage(initialMonth: DateTime.now())
+                                )
+                              ), 
+                            ),
+                            
+                            _buildSlideableRevenueCard(itemWidth),
+                          ],
+                        );
+                      },
+                    ),
+                    
+                    const SizedBox(height: 32),
+
+                    Text(
+                      "Analytics",
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (screenWidth > 800) { 
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: _buildRevenueChart(),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                flex: 1,
+                                child: _buildOccupancyChart(),
+                              ),
+                            ],
+                          );
+                        } else {
+                          return Column(
+                            children: [
+                              _buildRevenueChart(),
+                              const SizedBox(height: 16),
+                              _buildOccupancyChart(),
+                            ],
+                          );
+                        }
+                      },
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // ✅ NEW: Task Board Section (Navigates to TasksPage)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Task Board",
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TasksPage())),
+                          child: const Text("Open Board"),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTaskSummaryCard(), // New widget
+
+                    const SizedBox(height: 32),
+
+                    Text(
+                      "Quick Actions",
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _buildActionButton(
+                          label: "Add Tenant",
+                          icon: Icons.person_add,
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AddTenantPage()),
+                            );
+                            if (result == true) fetchDashboardData(); 
+                          },
+                        ),
+                        _buildActionButton(
+                          label: "Add Unit",
+                          icon: Icons.add_home,
+                          onTap: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AddUnitPage()),
+                            );
+                            if (result == true) fetchDashboardData();
+                          },
+                        ),
+                        _buildActionButton(
+                          label: "Add Lease",
+                          icon: Icons.post_add,
+                          onTap: () => _showVacantUnitPicker(context),
+                        ),
+                        _buildActionButton(
+                          label: "Create Invoice",
+                          icon: Icons.receipt,
+                          onTap: () {
+                             Navigator.push(context, MaterialPageRoute(builder: (_) => const TenantsPage()));
+                             ScaffoldMessenger.of(context).showSnackBar(
+                               const SnackBar(content: Text("Use the 'Generate Invoices' button in the AppBar here.")),
+                             );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  // ✅ New Widget: Task Summary Card
+  Widget _buildTaskSummaryCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
+      ),
+      child: InkWell(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TasksPage())),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
             children: [
-              Text(
-                "Welcome to Leverizaland Inc.",
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.list_alt, color: Colors.orange),
               ),
-              const SizedBox(height: 4),
-              Text(
-                "Here is what's happening today.",
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 24),
-
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final double spacing = 12.0;
-                  double usableWidth = constraints.maxWidth;
-                  if (usableWidth == double.infinity) usableWidth = screenWidth - 32;
-
-                  final double totalSpacing = spacing * (crossAxisCount - 1);
-                  final double itemWidth = (usableWidth - totalSpacing) / crossAxisCount;
-
-                  return Wrap(
-                    spacing: spacing,
-                    runSpacing: spacing,
-                    children: [
-                      _buildInfoCard(
-                        title: "Total Tenants",
-                        value: "$totalTenants",
-                        icon: Icons.people_alt_outlined,
-                        color: Colors.blue,
-                        width: itemWidth,
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TenantsPage())),
-                      ),
-                      _buildInfoCard(
-                        title: "Total Units",
-                        value: "$totalUnits",
-                        icon: Icons.apartment_outlined,
-                        color: Colors.orange,
-                        width: itemWidth,
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UnitsPage())),
-                      ),
-                      _buildInfoCard(
-                        title: "Vacant Units",
-                        value: "$vacantUnits",
-                        icon: Icons.meeting_room_outlined,
-                        color: Colors.redAccent,
-                        width: itemWidth,
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VacantUnitsPage())),
-                      ),
-
-                      _buildInfoCard(
-                        title: "Target Monthly Rent",
-                        value: currency.format(targetMonthlyRent),
-                        icon: Icons.price_check,
-                        color: Colors.teal,
-                        width: itemWidth,
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeasesPage())),
-                      ),
-
-                      _buildInfoCard(
-                        title: "Receivables (Active)",
-                        value: currency.format(totalReceivables),
-                        icon: Icons.account_balance_wallet_outlined,
-                        color: Colors.purple,
-                        width: itemWidth,
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => MonthlyReceivablesPage(initialMonth: DateTime.now())
-                            )
-                        ),
-                      ),
-
-                      _buildSlideableRevenueCard(itemWidth),
-
-                      // Task Board / Kanban card removed from home page
-                    ],
-                  );
-                },
-              ),
-
-              const SizedBox(height: 32),
-
-              Text(
-                "Analytics",
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  if (screenWidth > 800) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: _buildRevenueChart(),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          flex: 1,
-                          child: _buildOccupancyChart(),
-                        ),
-                      ],
-                    );
-                  } else {
-                    return Column(
-                      children: [
-                        _buildRevenueChart(),
-                        const SizedBox(height: 16),
-                        _buildOccupancyChart(),
-                      ],
-                    );
-                  }
-                },
-              ),
-
-              const SizedBox(height: 32),
-
-              Text(
-                "Quick Actions",
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildActionButton(
-                    label: "Add Tenant",
-                    icon: Icons.person_add,
-                    onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AddTenantPage()),
-                      );
-                      if (result == true) fetchDashboardData();
-                    },
+                  Text(
+                    "$pendingTasksCount Pending Tasks",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  _buildActionButton(
-                    label: "Add Unit",
-                    icon: Icons.add_home,
-                    onTap: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AddUnitPage()),
-                      );
-                      if (result == true) fetchDashboardData();
-                    },
-                  ),
-                  _buildActionButton(
-                    label: "Add Lease",
-                    icon: Icons.post_add,
-                    onTap: () => _showVacantUnitPicker(context),
-                  ),
-                  _buildActionButton(
-                    label: "Create Invoice",
-                    icon: Icons.receipt,
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const TenantsPage()));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Use the 'Generate Invoices' button in the AppBar here.")),
-                      );
-                    },
+                  const SizedBox(height: 4),
+                  Text(
+                    "Tap to view your task list",
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
+              const Spacer(),
+              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
             ],
           ),
         ),
@@ -489,10 +564,10 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildSlideableRevenueCard(double width) {
     const color = Colors.green;
-
+    
     return SizedBox(
       width: width,
-      height: 125,
+      height: 125, 
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -503,19 +578,19 @@ class _HomePageState extends State<HomePage> {
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification is ScrollStartNotification) {
-              _stopRevenueTimer();
+              _stopRevenueTimer(); 
             } else if (notification is ScrollEndNotification) {
-              _startRevenueTimer();
+              _startRevenueTimer(); 
             }
             return false;
           },
-          child: PageView.builder(
+          child: PageView.builder( 
             controller: _revenuePageController,
             onPageChanged: (index) {
               setState(() => _revenuePage = index);
             },
             itemBuilder: (context, index) {
-              final i = index % 2;
+              final i = index % 2; 
               if (i == 0) {
                 return _buildRevenueItem(
                   "Revenue (Month)",
@@ -540,16 +615,16 @@ class _HomePageState extends State<HomePage> {
     return InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage())),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0), 
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.min, 
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(8), 
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -566,7 +641,7 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const Spacer(),
-            FittedBox(
+            FittedBox( 
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Text(
@@ -591,7 +666,7 @@ class _HomePageState extends State<HomePage> {
       height: 6,
       width: isActive ? 12 : 6,
       decoration: BoxDecoration(
-        color: isActive ? Colors.green : Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+        color: isActive ? Colors.green : Theme.of(context).colorScheme.onSurface.withOpacity(0.2), 
         borderRadius: BorderRadius.circular(3),
       ),
     );
@@ -606,8 +681,8 @@ class _HomePageState extends State<HomePage> {
     required VoidCallback onTap,
   }) {
     return SizedBox(
-      width: width,
-      height: 125,
+      width: width, 
+      height: 125, 
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -619,7 +694,7 @@ class _HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.circular(12),
           hoverColor: color.withOpacity(0.05),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16.0), 
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -634,11 +709,11 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Icon(icon, color: color, size: 20),
                     ),
-                    Icon(Icons.arrow_forward_ios, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)),
+                    Icon(Icons.arrow_forward_ios, size: 12, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4)), 
                   ],
                 ),
-                const Spacer(),
-                FittedBox(
+                const Spacer(), 
+                FittedBox( 
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -659,6 +734,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _showComingSoonDialog(BuildContext context, String feature) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(feature),
+        content: const Text("This feature will be available in the next update. Please use the database or list pages for now."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("OK"),
+          )
+        ],
+      ),
+    );
+  }
+
   Widget _buildRevenueChart() {
     double maxValue = monthlyRevenue.reduce((a, b) => a > b ? a : b);
     double maxY = maxValue == 0 ? 10000 : maxValue * 1.2;
@@ -675,16 +766,16 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Monthly Revenue (Last 12 Months)",
+              "Monthly Revenue (Last 12 Months)", 
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
-            SizedBox(
+            SizedBox( 
               height: 200,
               child: BarChart(
                 BarChartData(
                   barTouchData: BarTouchData(
-                    longPressDuration: const Duration(milliseconds: 1500),
+                    longPressDuration: const Duration(milliseconds: 1500), 
                     touchTooltipData: BarTouchTooltipData(
                       tooltipBgColor: Theme.of(context).colorScheme.primary,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -704,17 +795,17 @@ class _HomePageState extends State<HomePage> {
                           barTouchResponse.spot == null) {
                         return;
                       }
-
-                      if (event is FlTapUpEvent || event is FlLongPressEnd) {
+                      
+                      if (event is FlTapUpEvent || event is FlLongPressEnd) { 
                         final index = barTouchResponse.spot!.touchedBarGroupIndex;
                         final now = DateTime.now();
                         final targetMonth = DateTime(now.year, now.month - 11 + index, 1);
-
+                        
                         Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => MonthlyPaymentsPage(initialMonth: targetMonth)
-                            )
+                          context, 
+                          MaterialPageRoute(
+                            builder: (_) => MonthlyPaymentsPage(initialMonth: targetMonth)
+                          )
                         );
                       }
                     },
@@ -726,11 +817,11 @@ class _HomePageState extends State<HomePage> {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        interval: 1,
+                        interval: 1, 
                         getTitlesWidget: (double value, TitleMeta meta) {
                           TextStyle style = Theme.of(context).textTheme.bodySmall!;
                           if (value.toInt() >= 0 && value.toInt() < monthLabels.length) {
-                            return SideTitleWidget(
+                             return SideTitleWidget(
                               axisSide: meta.axisSide,
                               space: 4,
                               child: Text(monthLabels[value.toInt()], style: style),
@@ -741,24 +832,24 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 40,
-                            getTitlesWidget: (value, meta) {
-                              if (value == 0) return const SizedBox();
-                              return Text(
-                                NumberFormat.compact().format(value),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              );
-                            }
-                        )
+                      sideTitles: SideTitles(
+                        showTitles: true, 
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) {
+                          if (value == 0) return const SizedBox();
+                          return Text(
+                            NumberFormat.compact().format(value), 
+                            style: Theme.of(context).textTheme.bodySmall,
+                          );
+                        }
+                      )
                     ),
                     topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   ),
                   borderData: FlBorderData(show: false),
-                  gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: maxY / 5,
-                    getDrawingHorizontalLine: (value) => FlLine(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1), strokeWidth: 1),
+                  gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: maxY / 5, 
+                  getDrawingHorizontalLine: (value) => FlLine(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1), strokeWidth: 1), 
                   ),
                   barGroups: monthlyRevenue.asMap().entries.map((entry) {
                     return BarChartGroupData(
@@ -854,9 +945,9 @@ class _HomePageState extends State<HomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildLegend(color: Theme.of(context).colorScheme.primary, text: "Occupied"),
+                _buildLegend(color: Theme.of(context).colorScheme.primary, text: "Occupied"), 
                 const SizedBox(width: 16),
-                _buildLegend(color: Theme.of(context).colorScheme.error, text: "Vacant"),
+                _buildLegend(color: Theme.of(context).colorScheme.error, text: "Vacant"), 
               ],
             ),
           ],
@@ -874,7 +965,7 @@ class _HomePageState extends State<HomePage> {
           decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
         const SizedBox(width: 4),
-        Text(text, style: Theme.of(context).textTheme.bodySmall),
+        Text(text, style: Theme.of(context).textTheme.bodySmall), 
       ],
     );
   }
@@ -911,17 +1002,17 @@ class _HomePageState extends State<HomePage> {
               backgroundColor: Colors.white,
               child: Text(
                 "L",
-                style: TextStyle(fontSize: 24, color: Theme.of(context).colorScheme.primary),
+                style: TextStyle(fontSize: 24, color: Theme.of(context).colorScheme.primary), 
               ),
             ),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.primary, 
               image: DecorationImage(
                 image: const NetworkImage(
                   "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80",
                 ),
                 fit: BoxFit.cover,
-                opacity: Theme.of(context).brightness == Brightness.dark ? 0.1 : 0.3,
+                opacity: Theme.of(context).brightness == Brightness.dark ? 0.1 : 0.3, 
               ),
             ),
           ),
@@ -929,7 +1020,7 @@ class _HomePageState extends State<HomePage> {
             leading: const Icon(Icons.dashboard),
             title: const Text('Dashboard'),
             onTap: () {
-              Navigator.pop(context);
+              Navigator.pop(context); 
             },
           ),
           ListTile(
@@ -949,7 +1040,7 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.receipt_long),
+            leading: const Icon(Icons.receipt_long), 
             title: const Text('Invoices'),
             onTap: () {
               Navigator.pop(context);
@@ -957,7 +1048,7 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.description),
+            leading: const Icon(Icons.description), 
             title: const Text('Lease Contracts'),
             onTap: () {
               Navigator.pop(context);
@@ -968,6 +1059,7 @@ class _HomePageState extends State<HomePage> {
             leading: const Icon(Icons.bar_chart),
             title: const Text('Reports'),
             onTap: () {
+              Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage()));
             },
           ),
@@ -982,14 +1074,14 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
-          // Task Board remains accessible from Drawer (navigates to TasksPage)
+          // ✅ Added Task Board back to Drawer
           ListTile(
             leading: const Icon(Icons.view_kanban),
             title: const Text('Task Board'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const TasksPage()));
+                MaterialPageRoute(builder: (_) => const TasksPage()));
             },
           ),
           const Divider(),
@@ -998,7 +1090,7 @@ class _HomePageState extends State<HomePage> {
             title: const Text('Settings'),
             onTap: () {
               Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())); 
             },
           ),
           ListTile(
