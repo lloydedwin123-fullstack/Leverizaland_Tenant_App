@@ -11,6 +11,7 @@ import 'edit_tenant_details_page.dart';
 import 'payment_details_page.dart';
 import '../models/arrear_summary.dart';
 import 'property_arrears_page.dart';
+import '../services/pdf_service.dart'; 
 
 class UnitDetailsPage extends StatefulWidget {
   final String unitId;
@@ -34,25 +35,23 @@ class UnitDetailsPage extends StatefulWidget {
 
 class _UnitDetailsPageState extends State<UnitDetailsPage> {
   final supabase = Supabase.instance.client;
+  final pdfService = PdfService(); 
 
   bool isLoading = true;
+  bool isGeneratingPdf = false; 
 
   Map<String, dynamic>? unit;
   Map<String, dynamic>? activeLease;
-  Map<String, dynamic>? tenant; // 👈 tenant details
+  Map<String, dynamic>? tenant;
   List<Map<String, dynamic>> pastLeases = [];
   List<Map<String, dynamic>> contactPersons = [];
 
-  // chips: tenant | unit | arrears | payments
   String _chip = 'unit';
 
-  final currency =
-      NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
+  final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
   final dateFmt = DateFormat('MMMM d, yyyy');
 
-  // For payments search
-  final TextEditingController _paymentsSearchController =
-      TextEditingController();
+  final TextEditingController _paymentsSearchController = TextEditingController();
 
   @override
   void initState() {
@@ -70,7 +69,6 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 
   Future<void> fetchUnitDetails() async {
     try {
-      // ---- Unit basic info ----
       final unitRes = await supabase
           .from('units')
           .select('''
@@ -80,7 +78,6 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
           .eq('id', widget.unitId)
           .single();
 
-      // ---- Active lease (if any) ----
       final activeLeaseRes = await supabase
           .from('leases')
           .select('''
@@ -92,7 +89,6 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
           .eq('status', 'Active')
           .maybeSingle();
 
-      // ---- Past leases ----
       final pastRes = await supabase
           .from('leases')
           .select('id, tenant_name, start_date, end_date, rent_amount')
@@ -103,7 +99,6 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       Map<String, dynamic>? tenantRes;
       List<Map<String, dynamic>> contactsRes = [];
 
-      // If there is an active lease, fetch tenant + contacts
       if (activeLeaseRes != null && activeLeaseRes['tenant_id'] != null) {
         final t = await supabase
             .from('tenants')
@@ -120,8 +115,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 
         final c = await supabase
             .from('contact_persons')
-            .select(
-                'id, name, position, email, phone_number, notes, is_primary')
+            .select('id, name, position, email, phone_number, notes, is_primary')
             .eq('tenant_id', activeLeaseRes['tenant_id']);
 
         contactsRes = List<Map<String, dynamic>>.from(c as List);
@@ -130,8 +124,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       if (!mounted) return;
       setState(() {
         unit = Map<String, dynamic>.from(unitRes);
-        activeLease =
-            activeLeaseRes == null ? null : Map<String, dynamic>.from(activeLeaseRes);
+        activeLease = activeLeaseRes == null ? null : Map<String, dynamic>.from(activeLeaseRes);
         pastLeases = List<Map<String, dynamic>>.from(pastRes as List);
         tenant = tenantRes;
         contactPersons = contactsRes;
@@ -140,8 +133,111 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error loading details: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading details: $e')));
+    }
+  }
+
+  // ✅ Select Corporation Profile
+  Future<Map<String, dynamic>?> _selectCorporation() async {
+    bool showBankDetails = true;
+
+    return await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder( 
+          builder: (context, setState) {
+            return SimpleDialog(
+              title: const Text('Select Biller / Entity'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: showBankDetails,
+                        onChanged: (val) => setState(() => showBankDetails = val ?? true),
+                      ),
+                      const Text("Show Bank Details?"),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, {
+                    'name': 'LEVERIZALAND INC.',
+                    'address': 'Property Management Department\nEmail: leverizalandinc@gmail.com',
+                    'bank': 'Bank: Eastwest Bank | Account No: 200003483362 | Account Name: Leverizaland Incorporated',
+                    'showBank': showBankDetails,
+                  }),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text('Leverizaland Inc.'),
+                  ),
+                ),
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, {
+                    'name': 'SOUTHLAND PRIME PROPERTIES & DEVT CORP.',
+                    'address': 'Property Management Department\nEmail: southlandcorp@gmail.com',
+                    'bank': 'Bank: Metrobank | Account No: 447-7-44751012-6 | Account Name: SOUTHLAND PRIME PROPERTIES & DEVT CORP.',
+                    'showBank': showBankDetails,
+                  }),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text('Southland Prime Properties'),
+                  ),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
+  }
+
+  // ✅ Generate SOA Function
+  Future<void> _generateSOA() async {
+    if (tenant == null || activeLease == null) return;
+
+    final corpInfo = await _selectCorporation();
+    if (corpInfo == null) return; 
+
+    setState(() => isGeneratingPdf = true);
+    try {
+      final tenantId = activeLease!['tenant_id'];
+      final tenantName = tenant!['name'] ?? 'Tenant';
+      final unitName = "${widget.building} ${widget.unitNumber}";
+
+      final response = await supabase
+          .from('invoice_payment_status')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .gt('balance', 0)
+          .order('due_date', ascending: true);
+
+      final invoices = List<Map<String, dynamic>>.from(response);
+
+      double totalDue = 0.0;
+      for (var inv in invoices) {
+        totalDue += (inv['balance'] ?? 0.0) as num;
+      }
+
+      final pdfData = await pdfService.generateStatementOfAccount(
+        tenantName: tenantName,
+        unitName: unitName,
+        unpaidInvoices: invoices,
+        totalDue: totalDue,
+        companyName: corpInfo['name'],
+        companyAddress: corpInfo['address'],
+        bankDetails: corpInfo['bank'],
+        showBankDetails: corpInfo['showBank'], 
+      );
+
+      await pdfService.printOrSharePdf(pdfData, 'SOA_${tenantName}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+    } finally {
+      if (mounted) setState(() => isGeneratingPdf = false);
     }
   }
 
@@ -163,7 +259,6 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
               : Column(
                   children: [
                     const SizedBox(height: 8),
-                    // ===== Chips row =====
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -173,8 +268,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                           ChoiceChip(
                             label: const Text('Tenant Details'),
                             selected: _chip == 'tenant',
-                            onSelected: (_) =>
-                                setState(() => _chip = 'tenant'),
+                            onSelected: (_) => setState(() => _chip = 'tenant'),
                           ),
                           const SizedBox(width: 8),
                           ChoiceChip(
@@ -186,22 +280,18 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                           ChoiceChip(
                             label: const Text('Arrears'),
                             selected: _chip == 'arrears',
-                            onSelected: (_) =>
-                                setState(() => _chip = 'arrears'),
+                            onSelected: (_) => setState(() => _chip = 'arrears'),
                           ),
                           const SizedBox(width: 8),
                           ChoiceChip(
                             label: const Text('Payment History'),
                             selected: _chip == 'payments',
-                            onSelected: (_) =>
-                                setState(() => _chip = 'payments'),
+                            onSelected: (_) => setState(() => _chip = 'payments'),
                           ),
                         ],
                       ),
                     ),
                     const SizedBox(height: 8),
-
-                    // ===== Active tab content =====
                     Expanded(
                       child: _buildActiveTab(),
                     ),
@@ -232,7 +322,6 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       );
     }
 
-    // Determine primary contact
     Map<String, dynamic>? primaryContact;
     if (contactPersons.isNotEmpty) {
       try {
@@ -245,12 +334,9 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       }
     }
 
-    final primaryName =
-        primaryContact?['name'] ?? tenant?['contact_person'] ?? '-';
-    final primaryPhone =
-        primaryContact?['phone_number'] ?? tenant?['phone'] ?? '-';
-    final primaryEmail =
-        primaryContact?['email'] ?? tenant?['email'] ?? '-';
+    final primaryName = primaryContact?['name'] ?? tenant?['contact_person'] ?? '-';
+    final primaryPhone = primaryContact?['phone_number'] ?? tenant?['phone'] ?? '-';
+    final primaryEmail = primaryContact?['email'] ?? tenant?['email'] ?? '-';
     final primaryPosition = primaryContact?['position'];
 
     final tenantId = tenant?['id'] ?? activeLease?['tenant_id'];
@@ -260,14 +346,31 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Generate SOA Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isGeneratingPdf ? null : _generateSOA,
+              icon: isGeneratingPdf 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.picture_as_pdf),
+              label: const Text("Generate Statement of Account"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           InkWell(
             onTap: () async {
               if (tenantId == null) return;
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      EditTenantDetailsPage(tenantId: tenantId.toString()),
+                  builder: (context) => EditTenantDetailsPage(tenantId: tenantId.toString()),
                 ),
               );
               if (result == true && mounted) {
@@ -281,18 +384,14 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text("Contact Person: $primaryName"),
-                    if (primaryPosition != null &&
-                        primaryPosition.toString().trim().isNotEmpty)
+                    if (primaryPosition != null && primaryPosition.toString().trim().isNotEmpty)
                       Text("Position: $primaryPosition"),
                     Text("Phone: $primaryPhone"),
                     Text("Email: $primaryEmail"),
                     const SizedBox(height: 8),
-                    Text(
-                        "Emergency Contact Person: ${tenant?['emergency_contact_name'] ?? '-'}"),
-                    Text(
-                        "Emergency Contact Number: ${tenant?['emergency_contact_number'] ?? '-'}"),
-                    Text(
-                        "Relationship: ${tenant?['emergency_contact_relationship'] ?? '-'}"),
+                    Text("Emergency Contact Person: ${tenant?['emergency_contact_name'] ?? '-'}"),
+                    Text("Emergency Contact Number: ${tenant?['emergency_contact_number'] ?? '-'}"),
+                    Text("Relationship: ${tenant?['emergency_contact_relationship'] ?? '-'}"),
                   ],
                 ),
               ),
@@ -328,8 +427,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
                       if (isPrimary)
                         const Padding(
                           padding: EdgeInsets.only(right: 6.0),
-                          child: Icon(Icons.star,
-                              size: 18, color: Colors.amber),
+                          child: Icon(Icons.star, size: 18, color: Colors.amber),
                         ),
                       Expanded(child: Text(c['name'] ?? 'N/A')),
                     ],
@@ -409,83 +507,107 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
 
     final tenantId = activeLease!['tenant_id'];
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: supabase
-          .from('invoice_payment_status')
-          .select(
-              'invoice_id, tenant_id, tenant_name, building, unit_name, due_date, amount_due, total_paid, balance, category, remarks')
-          .eq('tenant_id', tenantId)
-          .gt('balance', 0)
-          .order('due_date', ascending: true),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: Colors.amber));
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              "Error: ${snapshot.error}",
-              style: const TextStyle(color: Colors.red),
+    return Column( // ✅ Changed to Column to hold button + list
+      children: [
+        // ✅ Added Generate SOA Button at the top of Arrears Tab
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isGeneratingPdf ? null : _generateSOA,
+              icon: isGeneratingPdf 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.picture_as_pdf),
+              label: const Text("Generate Statement of Account"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
             ),
-          );
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text("No unpaid invoices"));
-        }
-
-        final arrears = snapshot.data!;
-        final groupedArrears = _groupArrears(arrears);
-
-        return ListView.builder(
-          itemCount: groupedArrears.length,
-          itemBuilder: (context, index) {
-            final summary = groupedArrears[index];
-            return Card(
-              margin: const EdgeInsets.all(8),
-              child: ListTile(
-                title: Text(
-                  summary.propertyName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+          ),
+        ),
+        
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: supabase
+                .from('invoice_payment_status')
+                .select('invoice_id, tenant_id, tenant_name, building, unit_name, due_date, amount_due, total_paid, balance, category, remarks')
+                .eq('tenant_id', tenantId)
+                .gt('balance', 0)
+                .order('due_date', ascending: true),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Colors.amber));
+              }
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    "Error: ${snapshot.error}",
+                    style: const TextStyle(color: Colors.red),
                   ),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Total Balance: ${currency.format(summary.totalBalance)}",
-                      style: const TextStyle(
-                        color: Color(0xFFAF2626),
-                        fontWeight: FontWeight.bold,
+                );
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Center(child: Text("No unpaid invoices"));
+              }
+
+              final arrears = snapshot.data!;
+              final groupedArrears = _groupArrears(arrears);
+
+              return ListView.builder(
+                itemCount: groupedArrears.length,
+                itemBuilder: (context, index) {
+                  final summary = groupedArrears[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Reduced margin
+                    child: ListTile(
+                      title: Text(
+                        summary.propertyName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
-                    Text("Coverage: ${summary.dateRange}"),
-                    Text("${summary.invoiceCount} Unpaid Invoices"),
-                  ],
-                ),
-                onTap: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PropertyArrearsPage(
-                        propertyName: summary.propertyName,
-                        invoices: summary.invoices,
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Total Balance: ${currency.format(summary.totalBalance)}",
+                            style: const TextStyle(
+                              color: Color(0xFFAF2626),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text("Coverage: ${summary.dateRange}"),
+                          Text("${summary.invoiceCount} Unpaid Invoices"),
+                        ],
                       ),
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PropertyArrearsPage(
+                              propertyName: summary.propertyName,
+                              invoices: summary.invoices,
+                            ),
+                          ),
+                        );
+                        if (result == true && mounted) {
+                          setState(() {
+                            _chip = 'payments';
+                          });
+                        }
+                      },
                     ),
                   );
-                  if (result == true && mounted) {
-                    setState(() {
-                      _chip = 'payments';
-                    });
-                  }
                 },
-              ),
-            );
-          },
-        );
-      },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -529,7 +651,7 @@ class _UnitDetailsPageState extends State<UnitDetailsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Payment deleted successfully!')),
         );
-        setState(() {}); // refresh
+        setState(() {}); 
       }
     } catch (e) {
       if (mounted) {
@@ -854,9 +976,18 @@ class ActiveLeaseCard extends StatelessWidget {
         color: Colors.red[50],
         child: const Padding(
           padding: EdgeInsets.all(14),
-          child: Text(
-            'No active lease for this unit.',
-            style: TextStyle(fontSize: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+               Text(
+                'No active lease for this unit.',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+               SizedBox(height: 10),
+               // 🆕 Add Lease Button Logic will go here if you decide to put it inside the card,
+               // but for now, the "Add Lease" Quick Action handles creation.
+               Text("Use the 'Add Lease' Quick Action on the Dashboard to create a new lease.", style: TextStyle(fontSize: 12)),
+            ],
           ),
         ),
       );
@@ -887,7 +1018,6 @@ class ActiveLeaseCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title + Edit Lease button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -934,7 +1064,6 @@ class ActiveLeaseCard extends StatelessWidget {
             const SizedBox(height: 10),
             const Divider(),
 
-            // ✅ CONTACT PERSONS SECTION RESTORED
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

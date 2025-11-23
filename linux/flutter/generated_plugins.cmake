@@ -5,8 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_linux
   gtk
-  pdf_render_maintained
-  syncfusion_pdfviewer_linux
+  printing
   url_launcher_linux
 )
 

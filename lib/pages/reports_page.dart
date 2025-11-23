@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_slidable/flutter_slidable.dart'; // ✅ Import Slidable
 import '../widgets/property_card.dart';
 import 'unit_details_page.dart';
+import '../services/pdf_service.dart'; // ✅ Import PdfService
 
 class ReportsPage extends StatefulWidget {
   final int initialIndex; 
@@ -18,24 +20,25 @@ class ReportsPage extends StatefulWidget {
 
 class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
+  final pdfService = PdfService(); // ✅ Init PdfService
   late TabController _tabController;
 
   final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
   final dateFmt = DateFormat('MMMM d, yyyy');
 
-  // ===== All Units tab =====
   bool isLoadingUnits = true;
   List<Map<String, dynamic>> allUnits = [];          
   Map<String, dynamic> perUnitExtras = {};           
   List<Map<String, dynamic>> filteredUnits = [];
   String unitsSearch = '';
 
-  // ===== Arrears tab =====
   bool isLoadingArrears = true;
   List<Map<String, dynamic>> arrearsPerUnit = [];    
   String arrearsSearch = '';
   List<Map<String, dynamic>> filteredArrears = [];
   double totalArrearsSum = 0.0; 
+  
+  bool isGeneratingPdf = false; // ✅ PDF Loading state
 
   @override
   void initState() {
@@ -57,6 +60,124 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
     if (v is double) return v;
     if (v is int) return v.toDouble();
     return double.tryParse(v.toString()) ?? 0.0;
+  }
+
+  // ✅ Select Corporation Logic (Copied from UnitDetailsPage for reuse)
+  Future<Map<String, dynamic>?> _selectCorporation() async {
+    bool showBankDetails = true;
+
+    return await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder( 
+          builder: (context, setState) {
+            return SimpleDialog(
+              title: const Text('Select Biller / Entity'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: showBankDetails,
+                        onChanged: (val) => setState(() => showBankDetails = val ?? true),
+                      ),
+                      const Text("Show Bank Details?"),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, {
+                    'name': 'LEVERIZALAND INC.',
+                    'address': 'Property Management Department\nEmail: leverizalandinc@gmail.com',
+                    'bank': 'Bank: Eastwest Bank | Account No: 200003483362 | Account Name: Leverizaland Incorporated',
+                    'showBank': showBankDetails,
+                  }),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text('Leverizaland Inc.'),
+                  ),
+                ),
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, {
+                    'name': 'SOUTHLAND PRIME PROPERTIES & DEVT CORP.',
+                    'address': 'Property Management Department\nEmail: southlandcorp@gmail.com',
+                    'bank': 'Bank: Metrobank | Account No: 447-7-44751012-6 | Account Name: SOUTHLAND PRIME PROPERTIES & DEVT CORP.',
+                    'showBank': showBankDetails,
+                  }),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    child: Text('Southland Prime Properties'),
+                  ),
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
+  }
+
+  // ✅ Generate SOA Logic for Reports Page
+  Future<void> _generateSOA(String unitId, String building, String unitNumber, String tenantName) async {
+    // 1. Get Tenant ID for this unit
+    // Since our arrears list is aggregated by unit, we need to find the active tenant_id.
+    // Fortunately, our `invoice_payment_status` query already returns `tenant_id`.
+    // We'll fetch it fresh or use what we have.
+    
+    final corpInfo = await _selectCorporation();
+    if (corpInfo == null) return; 
+
+    setState(() => isGeneratingPdf = true);
+    try {
+      // Fetch active tenant id for this unit to be safe
+      final lease = await supabase.from('leases')
+          .select('tenant_id')
+          .eq('unit_id', unitId)
+          .eq('status', 'Active')
+          .maybeSingle();
+          
+      if (lease == null) throw Exception("No active lease found for unit.");
+      
+      final tenantId = lease['tenant_id'];
+      final unitName = "$building $unitNumber";
+
+      // 2. Fetch unpaid invoices
+      final response = await supabase
+          .from('invoice_payment_status')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .gt('balance', 0)
+          .order('due_date', ascending: true);
+
+      final invoices = List<Map<String, dynamic>>.from(response);
+
+      double totalDue = 0.0;
+      for (var inv in invoices) {
+        totalDue += (inv['balance'] ?? 0.0) as num;
+      }
+
+      // 3. Generate PDF
+      final pdfData = await pdfService.generateStatementOfAccount(
+        tenantName: tenantName,
+        unitName: unitName,
+        unpaidInvoices: invoices,
+        totalDue: totalDue,
+        companyName: corpInfo['name'],
+        companyAddress: corpInfo['address'],
+        bankDetails: corpInfo['bank'],
+        showBankDetails: corpInfo['showBank'], 
+      );
+
+      // 4. Print/Share
+      await pdfService.printOrSharePdf(pdfData, 'SOA_${tenantName}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+    } finally {
+      if (mounted) setState(() => isGeneratingPdf = false);
+    }
   }
 
   // ---------------- All Units loader ----------------
@@ -314,7 +435,16 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
           tabs: const [Tab(text: 'All Units'), Tab(text: 'Arrears')],
         ),
       ),
-      body: TabBarView(
+      body: isGeneratingPdf 
+          ? const Center(child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text("Generating Statement..."),
+              ],
+            )) 
+          : TabBarView(
         controller: _tabController,
         children: [
           _buildAllUnits(),
@@ -499,26 +629,41 @@ class _ReportsPageState extends State<ReportsPage> with SingleTickerProviderStat
                 final balText = currency.format(toDouble(row['total_balance']));
                 final coverage = (row['coverage'] ?? '').toString();
 
-                return PropertyCard(
-                  title: title,
-                  tenantName: tenantName,
-                  rentText: rentText,
-                  balanceText: balText,
-                  coverageText: coverage,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => UnitDetailsPage(
-                          unitId: unitId,
-                          building: building,
-                          unitNumber: unitName,
-                          showFinanceChips: true,
-                          initialChip: 'arrears',
-                        ),
+                return Slidable( // ✅ Added Slidable Action
+                  key: ValueKey(unitId),
+                  startActionPane: ActionPane(
+                    motion: const ScrollMotion(),
+                    children: [
+                      SlidableAction(
+                        onPressed: (context) => _generateSOA(unitId, building, unitName, tenantName),
+                        backgroundColor: Colors.indigo,
+                        foregroundColor: Colors.white,
+                        icon: Icons.picture_as_pdf,
+                        label: 'Generate SOA',
                       ),
-                    );
-                  },
+                    ],
+                  ),
+                  child: PropertyCard(
+                    title: title,
+                    tenantName: tenantName,
+                    rentText: rentText,
+                    balanceText: balText,
+                    coverageText: coverage,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UnitDetailsPage(
+                            unitId: unitId,
+                            building: building,
+                            unitNumber: unitName,
+                            showFinanceChips: true,
+                            initialChip: 'arrears',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
             ),
