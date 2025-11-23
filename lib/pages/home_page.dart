@@ -16,7 +16,9 @@ import 'vacant_units_page.dart';
 import 'monthly_payments_page.dart';
 import 'monthly_receivables_page.dart';
 import 'add_lease_page.dart';
-import 'tasks_page.dart'; // ✅ Import Tasks Page
+import 'tasks_page.dart';
+import 'expenses_page.dart';
+import 'add_expense_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -43,50 +45,94 @@ class _HomePageState extends State<HomePage> {
   // Revenue Metrics
   double revenueThisMonth = 0.0;
   double revenueYTD = 0.0;
+  double expensesThisMonth = 0.0;
+  double expensesYTD = 0.0;
+  double netIncomeMonth = 0.0;
+  double netIncomeYTD = 0.0;
 
   // Task Metrics
   int pendingTasksCount = 0; 
 
   // Chart Data
   List<double> monthlyRevenue = List.filled(12, 0.0); 
+  List<double> monthlyExpenses = List.filled(12, 0.0);
   List<String> monthLabels = List.filled(12, ''); 
   int occupiedUnits = 0;
 
   final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
 
   final PageController _revenuePageController = PageController(initialPage: 1000);
+  final PageController _netIncomePageController = PageController(initialPage: 1000);
+  final PageController _expensesPageController = PageController(initialPage: 1000); // ✅ New Controller
+  
   Timer? _revenueTimer;
+  Timer? _netIncomeTimer;
+  Timer? _expensesTimer; // ✅ New Timer
+  
   int _revenuePage = 1000;
+  int _netIncomePage = 1000;
+  int _expensesPage = 1000; // ✅ New State
 
   @override
   void initState() {
     super.initState();
     fetchDashboardData();
-    _startRevenueTimer();
+    _startTimers();
   }
 
   @override
   void dispose() {
-    _stopRevenueTimer();
+    _stopTimers();
     _revenuePageController.dispose();
+    _netIncomePageController.dispose();
+    _expensesPageController.dispose(); // ✅ Dispose
     super.dispose();
   }
 
-  void _startRevenueTimer() {
-    _stopRevenueTimer(); 
+  void _startTimers() {
+    _stopTimers(); 
     _revenueTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
       if (_revenuePageController.hasClients) {
-        _revenuePageController.nextPage(
-          duration: const Duration(milliseconds: 800), 
-          curve: Curves.easeInOut, 
-        );
+        _revenuePageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
+      }
+    });
+    
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _netIncomeTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
+          if (_netIncomePageController.hasClients) {
+            _netIncomePageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
+          }
+        });
+      }
+    });
+
+    // ✅ Stagger Expenses Timer
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        _expensesTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
+          if (_expensesPageController.hasClients) {
+            _expensesPageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
+          }
+        });
       }
     });
   }
 
-  void _stopRevenueTimer() {
+  void _stopTimers() {
     _revenueTimer?.cancel();
-    _revenueTimer = null;
+    _netIncomeTimer?.cancel();
+    _expensesTimer?.cancel();
+  }
+
+  void _stopRevenueTimer() => _revenueTimer?.cancel();
+  void _startRevenueTimer() {
+     _revenueTimer?.cancel();
+     _revenueTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
+      if (_revenuePageController.hasClients) {
+        _revenuePageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
+      }
+    });
   }
 
   Future<void> fetchDashboardData() async {
@@ -124,7 +170,6 @@ class _HomePageState extends State<HomePage> {
         activeRecSum += (r['balance'] ?? 0.0) as num;
       }
 
-      // ✅ Fetch Pending Tasks Count
       final tasksCount = await supabase
           .from('tasks')
           .count()
@@ -144,22 +189,32 @@ class _HomePageState extends State<HomePage> {
           .select('amount_paid')
           .gte('payment_date', startMonthStr)
           .lt('payment_date', endMonthStr);
-
       double revMonthSum = 0.0;
-      for (var p in revenueMonthRes) {
-        revMonthSum += (p['amount_paid'] ?? 0.0) as num;
-      }
+      for (var p in revenueMonthRes) revMonthSum += (p['amount_paid'] ?? 0.0) as num;
 
       final revenueYearRes = await supabase
           .from('payments')
           .select('amount_paid')
           .gte('payment_date', startYearStr)
           .lt('payment_date', endMonthStr);
-
       double revYearSum = 0.0;
-      for (var p in revenueYearRes) {
-        revYearSum += (p['amount_paid'] ?? 0.0) as num;
-      }
+      for (var p in revenueYearRes) revYearSum += (p['amount_paid'] ?? 0.0) as num;
+
+      final expensesMonthRes = await supabase
+          .from('expenses')
+          .select('amount')
+          .gte('date', startMonthStr)
+          .lt('date', endMonthStr);
+      double expMonthSum = 0.0;
+      for (var e in expensesMonthRes) expMonthSum += (e['amount'] ?? 0.0) as num;
+
+      final expensesYearRes = await supabase
+          .from('expenses')
+          .select('amount')
+          .gte('date', startYearStr)
+          .lt('date', endMonthStr);
+      double expYearSum = 0.0;
+      for (var e in expensesYearRes) expYearSum += (e['amount'] ?? 0.0) as num;
 
       final startOfWindow = DateTime(now.year, now.month - 11, 1);
       final startWindowStr = DateFormat('yyyy-MM-dd').format(startOfWindow);
@@ -170,7 +225,14 @@ class _HomePageState extends State<HomePage> {
           .gte('payment_date', startWindowStr)
           .order('payment_date', ascending: true);
 
-      List<double> revenueHistory = List.filled(12, 0.0);
+      final expensesHistoryRes = await supabase
+          .from('expenses')
+          .select('amount, date')
+          .gte('date', startWindowStr)
+          .order('date', ascending: true);
+
+      List<double> revHistory = List.filled(12, 0.0);
+      List<double> expHistory = List.filled(12, 0.0);
       List<String> labels = [];
 
       for (int i = 0; i < 12; i++) {
@@ -184,9 +246,17 @@ class _HomePageState extends State<HomePage> {
         if (dateStr != null) {
           final pDate = DateTime.parse(dateStr);
           int index = (pDate.year - startOfWindow.year) * 12 + (pDate.month - startOfWindow.month);
-          if (index >= 0 && index < 12) {
-            revenueHistory[index] += amount.toDouble();
-          }
+          if (index >= 0 && index < 12) revHistory[index] += amount.toDouble();
+        }
+      }
+
+      for (var e in expensesHistoryRes) {
+        final amount = (e['amount'] ?? 0.0) as num;
+        final dateStr = e['date'] as String?;
+        if (dateStr != null) {
+          final eDate = DateTime.parse(dateStr);
+          int index = (eDate.year - startOfWindow.year) * 12 + (eDate.month - startOfWindow.month);
+          if (index >= 0 && index < 12) expHistory[index] += amount.toDouble();
         }
       }
 
@@ -198,11 +268,18 @@ class _HomePageState extends State<HomePage> {
         occupiedUnits = calculatedOccupied;
         totalReceivables = activeRecSum; 
         targetMonthlyRent = targetRentSum; 
+        
         revenueThisMonth = revMonthSum;
         revenueYTD = revYearSum; 
-        monthlyRevenue = revenueHistory;
+        expensesThisMonth = expMonthSum;
+        expensesYTD = expYearSum;
+        netIncomeMonth = revMonthSum - expMonthSum;
+        netIncomeYTD = revYearSum - expYearSum;
+
+        monthlyRevenue = revHistory;
+        monthlyExpenses = expHistory;
         monthLabels = labels;
-        pendingTasksCount = tasksCount; // ✅ Set Task Count
+        pendingTasksCount = tasksCount; 
         isLoading = false;
       });
 
@@ -397,7 +474,12 @@ class _HomePageState extends State<HomePage> {
                               ), 
                             ),
                             
+                            _buildSlideableNetIncomeCard(itemWidth),
+
                             _buildSlideableRevenueCard(itemWidth),
+
+                            // ✅ NEW: Slideable Expenses Card
+                            _buildSlideableExpensesCard(itemWidth),
                           ],
                         );
                       },
@@ -441,7 +523,7 @@ class _HomePageState extends State<HomePage> {
 
                     const SizedBox(height: 32),
 
-                    // ✅ NEW: Task Board Section (Navigates to TasksPage)
+                    // ✅ Task Board Section
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -456,7 +538,7 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _buildTaskSummaryCard(), // New widget
+                    _buildTaskSummaryCard(), 
 
                     const SizedBox(height: 32),
 
@@ -506,6 +588,11 @@ class _HomePageState extends State<HomePage> {
                              );
                           },
                         ),
+                        _buildActionButton(
+                          label: "Log Expense",
+                          icon: Icons.money_off,
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddExpensePage())),
+                        ),
                       ],
                     ),
                   ],
@@ -515,7 +602,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ✅ New Widget: Task Summary Card
   Widget _buildTaskSummaryCard() {
     return Card(
       elevation: 0,
@@ -562,6 +648,109 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildSlideableNetIncomeCard(double width) {
+    const color = Colors.blue; // Net Income
+    
+    return SizedBox(
+      width: width,
+      height: 125, 
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollStartNotification) {
+              _netIncomeTimer?.cancel();
+            } else if (notification is ScrollEndNotification) {
+              // Restart timer
+            }
+            return false;
+          },
+          child: PageView.builder( 
+            controller: _netIncomePageController,
+            onPageChanged: (index) {
+              setState(() => _netIncomePage = index);
+            },
+            itemBuilder: (context, index) {
+              final i = index % 2; 
+              if (i == 0) {
+                return _buildRevenueItem(
+                  "Net Income (Month)",
+                  currency.format(netIncomeMonth),
+                  color,
+                  _netIncomePage
+                );
+              } else {
+                return _buildRevenueItem(
+                  "Net Income (YTD)",
+                  currency.format(netIncomeYTD),
+                  color,
+                  _netIncomePage
+                );
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✅ New Widget: Slideable Expenses Card
+  Widget _buildSlideableExpensesCard(double width) {
+    const color = Colors.red; 
+    
+    return SizedBox(
+      width: width,
+      height: 125, 
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollStartNotification) {
+              _expensesTimer?.cancel();
+            } else if (notification is ScrollEndNotification) {
+              // Restart timer
+            }
+            return false;
+          },
+          child: PageView.builder( 
+            controller: _expensesPageController,
+            onPageChanged: (index) {
+              setState(() => _expensesPage = index);
+            },
+            itemBuilder: (context, index) {
+              final i = index % 2; 
+              if (i == 0) {
+                return _buildRevenueItem(
+                  "Expenses (Month)",
+                  currency.format(expensesThisMonth),
+                  color,
+                  _expensesPage
+                );
+              } else {
+                return _buildRevenueItem(
+                  "Expenses (YTD)",
+                  currency.format(expensesYTD),
+                  color,
+                  _expensesPage
+                );
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSlideableRevenueCard(double width) {
     const color = Colors.green;
     
@@ -596,12 +785,14 @@ class _HomePageState extends State<HomePage> {
                   "Revenue (Month)",
                   currency.format(revenueThisMonth),
                   color,
+                  _revenuePage
                 );
               } else {
                 return _buildRevenueItem(
                   "Revenue (YTD)",
                   currency.format(revenueYTD),
                   color,
+                  _revenuePage
                 );
               }
             },
@@ -611,9 +802,9 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildRevenueItem(String title, String value, Color color) {
+  Widget _buildRevenueItem(String title, String value, Color color, int pageIndex) {
     return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage())),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpensesPage())), // ✅ Navigates to Expenses if it's the expenses card
       child: Padding(
         padding: const EdgeInsets.all(16.0), 
         child: Column(
@@ -633,9 +824,9 @@ class _HomePageState extends State<HomePage> {
                 ),
                 Row(
                   children: [
-                    _buildDot(_revenuePage % 2 == 0),
+                    _buildDot(pageIndex % 2 == 0),
                     const SizedBox(width: 4),
-                    _buildDot(_revenuePage % 2 == 1),
+                    _buildDot(pageIndex % 2 == 1),
                   ],
                 ),
               ],
@@ -766,7 +957,7 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Monthly Revenue (Last 12 Months)", 
+              "Cash Flow (Income vs Expenses)", 
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
@@ -779,9 +970,10 @@ class _HomePageState extends State<HomePage> {
                     touchTooltipData: BarTouchTooltipData(
                       tooltipBgColor: Theme.of(context).colorScheme.primary,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                        final type = rodIndex == 0 ? 'Income' : 'Expense';
                         final amount = currency.format(rod.toY);
                         return BarTooltipItem(
-                          amount,
+                          '$type\n$amount',
                           TextStyle(
                             color: Theme.of(context).colorScheme.onPrimary,
                             fontWeight: FontWeight.bold,
@@ -851,12 +1043,13 @@ class _HomePageState extends State<HomePage> {
                   gridData: FlGridData(show: true, drawVerticalLine: false, horizontalInterval: maxY / 5, 
                   getDrawingHorizontalLine: (value) => FlLine(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1), strokeWidth: 1), 
                   ),
-                  barGroups: monthlyRevenue.asMap().entries.map((entry) {
+                  barGroups: List.generate(12, (index) {
                     return BarChartGroupData(
-                      x: entry.key,
+                      x: index,
+                      barsSpace: 4, 
                       barRods: [
                         BarChartRodData(
-                          toY: entry.value,
+                          toY: monthlyRevenue[index],
                           gradient: LinearGradient(
                             colors: [
                               Theme.of(context).colorScheme.primary,
@@ -865,17 +1058,18 @@ class _HomePageState extends State<HomePage> {
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                           ),
-                          width: 16,
-                          borderRadius: BorderRadius.circular(4),
-                          backDrawRodData: BackgroundBarChartRodData(
-                            show: true,
-                            toY: maxY,
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
-                          ),
+                          width: 8, 
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        BarChartRodData(
+                          toY: monthlyExpenses[index],
+                          color: Theme.of(context).colorScheme.error.withOpacity(0.8),
+                          width: 8, 
+                          borderRadius: BorderRadius.circular(2),
                         )
                       ],
                     );
-                  }).toList(),
+                  }),
                 ),
               ),
             ),
@@ -1064,14 +1258,11 @@ class _HomePageState extends State<HomePage> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.calendar_month),
-            title: const Text('Monthly Payments'),
+            leading: const Icon(Icons.attach_money), 
+            title: const Text('Expenses'),
             onTap: () {
               Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => MonthlyPaymentsPage(initialMonth: DateTime.now())),
-              );
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpensesPage()));
             },
           ),
           // ✅ Added Task Board back to Drawer

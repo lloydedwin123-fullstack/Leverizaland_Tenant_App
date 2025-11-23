@@ -87,7 +87,6 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         if (res == null) throw Exception('Task save failed');
         task = Map<String, dynamic>.from(res);
 
-        // upload any temp attachments now task has id
         for (var temp in List<Map<String, dynamic>>.from(tempAttachments)) {
           final File file = temp['file'] as File;
           await _uploadFile(file);
@@ -206,28 +205,32 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   // ---------------- UI / helpers ----------------
   @override
   Widget build(BuildContext context) {
-    final titleStyle = const TextStyle(fontSize: 22, fontWeight: FontWeight.w600);
+    final colorScheme = Theme.of(context).colorScheme; // ✅ Used for theme colors
+    final titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: colorScheme.onSurface); // ✅ Themed text color
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
         title: const Text('Task Details'),
         elevation: 0,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        foregroundColor: Colors.black87,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor, // ✅ Themed
+        foregroundColor: colorScheme.onSurface, // ✅ Themed
       ),
       bottomNavigationBar: Container(
         height: 64,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, border: Border(top: BorderSide(color: Colors.grey.shade50))),
+        decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, border: Border(top: BorderSide(color: Theme.of(context).dividerColor))), // ✅ Themed
         child: SafeArea(
           top: false,
           child: Row(children: [
             const Spacer(),
             TextButton(
               onPressed: () => _saveBasicInfo(popAfter: true),
-              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10), backgroundColor: Colors.teal[50], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-              child: Text('Save', style: TextStyle(color: Colors.teal[900])),
+              style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  backgroundColor: colorScheme.primaryContainer, // ✅ Themed
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              child: Text('Save', style: TextStyle(color: colorScheme.onPrimaryContainer)), // ✅ Themed
             ),
           ]),
         ),
@@ -238,7 +241,12 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
         padding: EdgeInsets.only(left: 16, right: 16, top: 12, bottom: MediaQuery.of(context).viewInsets.bottom + 12),
         child: SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextField(controller: _titleController, decoration: const InputDecoration.collapsed(hintText: 'Add title'), style: titleStyle, onSubmitted: (_) => _saveBasicInfo()),
+            TextField(
+                controller: _titleController,
+                decoration: const InputDecoration.collapsed(hintText: 'Add title'),
+                style: titleStyle,
+                onSubmitted: (_) => _saveBasicInfo()
+            ),
             const SizedBox(height: 16),
             _buildDetailsRowInlinePreview(),
             _buildDueRowCompact(),
@@ -253,6 +261,8 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
 
   Widget _buildDetailsRowInlinePreview() {
     final previewText = _descController.text.trim();
+    final colorScheme = Theme.of(context).colorScheme; // ✅
+
     return InkWell(
       onTap: () async {
         final controller = TextEditingController(text: _descController.text);
@@ -275,22 +285,24 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.menu, size: 22, color: Colors.black54),
+          Icon(Icons.menu, size: 22, color: colorScheme.onSurface.withOpacity(0.6)), // ✅ Themed
           const SizedBox(width: 14),
-          Expanded(child: Text(previewText.isEmpty ? 'Add details' : previewText, softWrap: true, style: TextStyle(fontSize: 16, color: previewText.isEmpty ? Colors.black87 : Colors.grey[800]))),
+          Expanded(child: Text(previewText.isEmpty ? 'Add details' : previewText, softWrap: true, style: TextStyle(fontSize: 16, color: previewText.isEmpty ? colorScheme.onSurface : colorScheme.onSurface.withOpacity(0.8)))), // ✅ Themed
         ]),
       ),
     );
   }
 
   Widget _buildDueRowCompact() {
+    final colorScheme = Theme.of(context).colorScheme; // ✅
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(children: [
-        const Icon(Icons.calendar_today, size: 22, color: Colors.black54),
+        Icon(Icons.calendar_today, size: 22, color: colorScheme.onSurface.withOpacity(0.6)), // ✅ Themed
         const SizedBox(width: 14),
         if (_dueDate == null)
-          InkWell(onTap: _pickDueDate, child: const Text('Add date/time', style: TextStyle(fontSize: 16)))
+          InkWell(onTap: _pickDueDate, child: Text('Add date/time', style: TextStyle(fontSize: 16, color: colorScheme.onSurface))) // ✅ Themed
         else
           InputChip(label: Text(_dueDate!.toLocal().toIso8601String().split('T').first), onDeleted: _clearDueDate),
       ]),
@@ -298,13 +310,15 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   }
 
   Widget _subtasksAreaCompact() {
+    final colorScheme = Theme.of(context).colorScheme; // ✅
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      InkWell(onTap: () => setState(() => _addingSubtask = true), child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: const [Icon(Icons.subdirectory_arrow_right, size: 22, color: Colors.black54), SizedBox(width: 14), Text('Add subtasks', style: TextStyle(fontSize: 16))]))),
+      InkWell(onTap: () => setState(() => _addingSubtask = true), child: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [Icon(Icons.subdirectory_arrow_right, size: 22, color: colorScheme.onSurface.withOpacity(0.6)), SizedBox(width: 14), Text('Add subtasks', style: TextStyle(fontSize: 16, color: colorScheme.onSurface))]))), // ✅ Themed
       if (_addingSubtask)
         Padding(
           padding: const EdgeInsets.only(left: 44.0, right: 8.0, bottom: 6.0),
           child: Row(children: [
-            Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade400))),
+            Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: colorScheme.outline))), // ✅ Themed
             const SizedBox(width: 12),
             Expanded(child: TextField(controller: _subtaskController, autofocus: true, decoration: const InputDecoration.collapsed(hintText: 'Enter title'), onSubmitted: (v) async => await _addSubtask(v))),
             IconButton(icon: const Icon(Icons.clear, size: 20), onPressed: () => setState(() {
@@ -319,11 +333,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
           child: Row(children: [
             GestureDetector(
               onTap: () => _toggleSubtask(s),
-              child: s['is_done'] == true ? Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.green), child: const Icon(Icons.check, size: 16, color: Colors.white)) : Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.grey.shade400))),
+              child: s['is_done'] == true ? Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.green), child: const Icon(Icons.check, size: 16, color: Colors.white)) : Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: colorScheme.outline))), // ✅ Themed
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(s['title'] ?? '', style: const TextStyle(fontSize: 15))),
-            IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _deleteSubtask(s)),
+            Expanded(child: Text(s['title'] ?? '', style: TextStyle(fontSize: 15, color: colorScheme.onSurface))), // ✅ Themed
+            IconButton(icon: Icon(Icons.delete_outline, color: colorScheme.error), onPressed: () => _deleteSubtask(s)), // ✅ Themed
           ]),
         );
       }).toList(),
@@ -331,15 +345,16 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
   }
 
   Widget _attachmentsList() {
+    final colorScheme = Theme.of(context).colorScheme; // ✅
     final allAttachments = [...attachments, ...tempAttachments];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 8),
       Row(children: [
-        const Icon(Icons.attach_file, size: 22, color: Colors.black54),
+        Icon(Icons.attach_file, size: 22, color: colorScheme.onSurface.withOpacity(0.6)), // ✅ Themed
         const SizedBox(width: 14),
-        const Text('Attachments', style: TextStyle(fontSize: 16)),
+        Text('Attachments', style: TextStyle(fontSize: 16, color: colorScheme.onSurface)), // ✅ Themed
         const Spacer(),
-        IconButton(icon: isSaving ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.add_photo_alternate_outlined), onPressed: isSaving ? null : _pickAndUploadAttachment),
+        IconButton(icon: isSaving ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)) : Icon(Icons.add_photo_alternate_outlined, color: colorScheme.primary), onPressed: isSaving ? null : _pickAndUploadAttachment), // ✅ Themed
       ]),
       const SizedBox(height: 8),
       if (allAttachments.isNotEmpty)
@@ -363,7 +378,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                     borderRadius: BorderRadius.circular(8),
                     child: mime.startsWith('image/')
                         ? Image.file(file, width: 140, height: 80, fit: BoxFit.cover)
-                        : Container(width: 140, height: 80, color: Colors.grey[200], child: const Center(child: Icon(Icons.picture_as_pdf, color: Colors.red))),
+                        : Container(width: 140, height: 80, color: colorScheme.surfaceVariant, child: Center(child: Icon(Icons.picture_as_pdf, color: colorScheme.error))), // ✅ Themed
                   ),
                   Positioned(top: 0, right: 0, child: GestureDetector(onTap: () => setState(() => tempAttachments.remove(a)), child: Container(decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle), padding: const EdgeInsets.all(4), child: const Icon(Icons.close, size: 14, color: Colors.white)))),
                 ]);
@@ -375,11 +390,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
                   return GestureDetector(
                     onTap: () => _openPdf(url!),
                     onLongPress: () => _deleteAttachment(a),
-                    child: Container(width: 180, padding: const EdgeInsets.all(8), decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: Colors.grey[100]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Row(children: [Icon(Icons.picture_as_pdf, color: Colors.red), SizedBox(width: 8), Text('PDF', style: TextStyle(fontWeight: FontWeight.bold))]),
+                    child: Container(width: 180, padding: const EdgeInsets.all(8), decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: colorScheme.surfaceVariant), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [ // ✅ Themed
+                       Row(children: [Icon(Icons.picture_as_pdf, color: colorScheme.error), SizedBox(width: 8), Text('PDF', style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurfaceVariant))]), // ✅ Themed
                       const SizedBox(height: 6),
-                      Text(a['file_name'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                      if (caption.isNotEmpty) Text(caption, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                      Text(a['file_name'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: colorScheme.onSurfaceVariant)), // ✅ Themed
+                      if (caption.isNotEmpty) Text(caption, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)), // ✅ Themed
                     ])),
                   );
                 }
