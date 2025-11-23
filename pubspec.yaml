@@ -54,7 +54,7 @@ dependencies:
   # PDF & Documents
   pdf: ^3.10.4
   printing: ^5.11.0
-  syncfusion_flutter_pdfviewer: ^24.1.41 # Adjusted version for broad compatibility or use ^21.x if older
+  syncfusion_flutter_pdfviewer: ^31.2.12 # ✅ Upgraded to fix build error
 
 dev_dependencies:
   flutter_test:
