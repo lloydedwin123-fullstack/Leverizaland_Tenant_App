@@ -59,19 +59,22 @@ class _HomePageState extends State<HomePage> {
   List<String> monthLabels = List.filled(12, ''); 
   int occupiedUnits = 0;
 
+  // Chart Interaction State
+  int _touchedIndex = -1; 
+
   final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
 
-  final PageController _revenuePageController = PageController(initialPage: 1000);
-  final PageController _netIncomePageController = PageController(initialPage: 1000);
-  final PageController _expensesPageController = PageController(initialPage: 1000); // ✅ New Controller
+  final PageController _revenueNetPageController = PageController(initialPage: 1000); // Combined
+  final PageController _expensesPageController = PageController(initialPage: 1000);
+  final PageController _unitsPageController = PageController(initialPage: 1000);
   
-  Timer? _revenueTimer;
-  Timer? _netIncomeTimer;
-  Timer? _expensesTimer; // ✅ New Timer
+  Timer? _revenueNetTimer;
+  Timer? _expensesTimer;
+  Timer? _unitsTimer;
   
-  int _revenuePage = 1000;
-  int _netIncomePage = 1000;
-  int _expensesPage = 1000; // ✅ New State
+  int _revenueNetPage = 1000;
+  int _expensesPage = 1000;
+  int _unitsPage = 1000;
 
   @override
   void initState() {
@@ -83,36 +86,36 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _stopTimers();
-    _revenuePageController.dispose();
-    _netIncomePageController.dispose();
-    _expensesPageController.dispose(); // ✅ Dispose
+    _revenueNetPageController.dispose();
+    _expensesPageController.dispose();
+    _unitsPageController.dispose();
     super.dispose();
   }
 
   void _startTimers() {
     _stopTimers(); 
-    _revenueTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
-      if (_revenuePageController.hasClients) {
-        _revenuePageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
+    
+    _revenueNetTimer = Timer.periodic(const Duration(seconds: 5), (timer) { 
+      if (_revenueNetPageController.hasClients) {
+        _revenueNetPageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
       }
     });
-    
+
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        _netIncomeTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
-          if (_netIncomePageController.hasClients) {
-            _netIncomePageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
+        _expensesTimer = Timer.periodic(const Duration(seconds: 5), (timer) { 
+          if (_expensesPageController.hasClients) {
+            _expensesPageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
           }
         });
       }
     });
 
-    // ✅ Stagger Expenses Timer
-    Future.delayed(const Duration(seconds: 1), () {
+    Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {
-        _expensesTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
-          if (_expensesPageController.hasClients) {
-            _expensesPageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
+        _unitsTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
+          if (_unitsPageController.hasClients) {
+            _unitsPageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
           }
         });
       }
@@ -120,19 +123,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _stopTimers() {
-    _revenueTimer?.cancel();
-    _netIncomeTimer?.cancel();
+    _revenueNetTimer?.cancel();
     _expensesTimer?.cancel();
-  }
-
-  void _stopRevenueTimer() => _revenueTimer?.cancel();
-  void _startRevenueTimer() {
-     _revenueTimer?.cancel();
-     _revenueTimer = Timer.periodic(const Duration(seconds: 4), (timer) { 
-      if (_revenuePageController.hasClients) {
-        _revenuePageController.nextPage(duration: const Duration(milliseconds: 800), curve: Curves.easeInOut);
-      }
-    });
+    _unitsTimer?.cancel();
   }
 
   Future<void> fetchDashboardData() async {
@@ -403,7 +396,7 @@ class _HomePageState extends State<HomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Welcome to Leverizaland Inc.",
+                      "Welcome to Leverizaland Incorporated", 
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
@@ -426,6 +419,7 @@ class _HomePageState extends State<HomePage> {
                           spacing: spacing,
                           runSpacing: spacing,
                           children: [
+                            // 1. Tenants
                             _buildInfoCard(
                               title: "Total Tenants",
                               value: "$totalTenants",
@@ -434,32 +428,11 @@ class _HomePageState extends State<HomePage> {
                               width: itemWidth,
                               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TenantsPage())),
                             ),
-                            _buildInfoCard(
-                              title: "Total Units",
-                              value: "$totalUnits",
-                              icon: Icons.apartment_outlined,
-                              color: Colors.orange,
-                              width: itemWidth,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UnitsPage())),
-                            ),
-                            _buildInfoCard(
-                              title: "Vacant Units",
-                              value: "$vacantUnits",
-                              icon: Icons.meeting_room_outlined,
-                              color: Colors.redAccent,
-                              width: itemWidth,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VacantUnitsPage())),
-                            ),
                             
-                            _buildInfoCard(
-                              title: "Target Monthly Rent",
-                              value: currency.format(targetMonthlyRent),
-                              icon: Icons.price_check, 
-                              color: Colors.teal,
-                              width: itemWidth,
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeasesPage())),
-                            ),
-
+                            // 2. Units / Vacant Units (Merged)
+                            _buildSlideableUnitsCard(itemWidth),
+                            
+                            // 3. Receivables
                             _buildInfoCard(
                               title: "Receivables (Active)",
                               value: currency.format(totalReceivables),
@@ -473,13 +446,22 @@ class _HomePageState extends State<HomePage> {
                                 )
                               ), 
                             ),
+
+                            // 4. Target Rent
+                            _buildInfoCard(
+                              title: "Target Monthly Rent",
+                              value: currency.format(targetMonthlyRent),
+                              icon: Icons.price_check, 
+                              color: Colors.teal,
+                              width: itemWidth,
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeasesPage())),
+                            ),
                             
-                            _buildSlideableNetIncomeCard(itemWidth),
-
-                            _buildSlideableRevenueCard(itemWidth),
-
-                            // ✅ NEW: Slideable Expenses Card
+                            // 5. Expenses (Slideable)
                             _buildSlideableExpensesCard(itemWidth),
+
+                            // 6. Revenue & Net (Merged Slideable)
+                            _buildSlideableRevenueNetCard(itemWidth),
                           ],
                         );
                       },
@@ -492,34 +474,8 @@ class _HomePageState extends State<HomePage> {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (screenWidth > 800) { 
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: _buildRevenueChart(),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                flex: 1,
-                                child: _buildOccupancyChart(),
-                              ),
-                            ],
-                          );
-                        } else {
-                          return Column(
-                            children: [
-                              _buildRevenueChart(),
-                              const SizedBox(height: 16),
-                              _buildOccupancyChart(),
-                            ],
-                          );
-                        }
-                      },
-                    ),
+                    
+                    _buildRevenueChart(),
 
                     const SizedBox(height: 32),
 
@@ -649,7 +605,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildSlideableNetIncomeCard(double width) {
-    const color = Colors.blue; // Net Income
+    const color = Colors.blue; 
     
     return SizedBox(
       width: width,
@@ -664,34 +620,29 @@ class _HomePageState extends State<HomePage> {
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification is ScrollStartNotification) {
-              _netIncomeTimer?.cancel();
-            } else if (notification is ScrollEndNotification) {
-              // Restart timer
+              _revenueNetTimer?.cancel(); // Using the combined timer
             }
             return false;
           },
           child: PageView.builder( 
-            controller: _netIncomePageController,
+            controller: _revenueNetPageController,
             onPageChanged: (index) {
-              setState(() => _netIncomePage = index);
+              setState(() => _revenueNetPage = index);
             },
             itemBuilder: (context, index) {
-              final i = index % 2; 
-              if (i == 0) {
-                return _buildRevenueItem(
-                  "Net Income (Month)",
-                  currency.format(netIncomeMonth),
-                  color,
-                  _netIncomePage
-                );
-              } else {
-                return _buildRevenueItem(
-                  "Net Income (YTD)",
-                  currency.format(netIncomeYTD),
-                  color,
-                  _netIncomePage
-                );
+              final i = index % 4; 
+              String title = "";
+              String value = "";
+              Color col = Colors.blue;
+
+              switch(i) {
+                case 0: title = "Revenue (Month)"; value = currency.format(revenueThisMonth); col = Colors.green; break;
+                case 1: title = "Net Income (Month)"; value = currency.format(netIncomeMonth); col = Colors.blue; break;
+                case 2: title = "Revenue (YTD)"; value = currency.format(revenueYTD); col = Colors.green; break;
+                case 3: title = "Net Income (YTD)"; value = currency.format(netIncomeYTD); col = Colors.blue; break;
               }
+
+              return _buildRevenueItem(title, value, col, _revenueNetPage, isFourSlides: true);
             },
           ),
         ),
@@ -699,7 +650,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ✅ New Widget: Slideable Expenses Card
+  Widget _buildSlideableRevenueNetCard(double width) {
+    return _buildSlideableNetIncomeCard(width); // Reuse the combined card widget
+  }
+
   Widget _buildSlideableExpensesCard(double width) {
     const color = Colors.red; 
     
@@ -717,8 +671,6 @@ class _HomePageState extends State<HomePage> {
           onNotification: (notification) {
             if (notification is ScrollStartNotification) {
               _expensesTimer?.cancel();
-            } else if (notification is ScrollEndNotification) {
-              // Restart timer
             }
             return false;
           },
@@ -734,14 +686,16 @@ class _HomePageState extends State<HomePage> {
                   "Expenses (Month)",
                   currency.format(expensesThisMonth),
                   color,
-                  _expensesPage
+                  _expensesPage,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpensesPage())) // ✅ Tap goes to Expenses
                 );
               } else {
                 return _buildRevenueItem(
                   "Expenses (YTD)",
                   currency.format(expensesYTD),
                   color,
-                  _expensesPage
+                  _expensesPage,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpensesPage())) // ✅ Tap goes to Expenses
                 );
               }
             },
@@ -751,9 +705,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSlideableRevenueCard(double width) {
-    const color = Colors.green;
-    
+  Widget _buildSlideableUnitsCard(double width) {
     return SizedBox(
       width: width,
       height: 125, 
@@ -767,32 +719,34 @@ class _HomePageState extends State<HomePage> {
         child: NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification is ScrollStartNotification) {
-              _stopRevenueTimer(); 
-            } else if (notification is ScrollEndNotification) {
-              _startRevenueTimer(); 
+              _unitsTimer?.cancel();
             }
             return false;
           },
           child: PageView.builder( 
-            controller: _revenuePageController,
+            controller: _unitsPageController,
             onPageChanged: (index) {
-              setState(() => _revenuePage = index);
+              setState(() => _unitsPage = index);
             },
             itemBuilder: (context, index) {
               final i = index % 2; 
               if (i == 0) {
-                return _buildRevenueItem(
-                  "Revenue (Month)",
-                  currency.format(revenueThisMonth),
-                  color,
-                  _revenuePage
+                return _buildInfoCardContent(
+                  title: "Total Units",
+                  value: "$totalUnits",
+                  icon: Icons.apartment_outlined,
+                  color: Colors.orange,
+                  pageIndex: _unitsPage,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UnitsPage())),
                 );
               } else {
-                return _buildRevenueItem(
-                  "Revenue (YTD)",
-                  currency.format(revenueYTD),
-                  color,
-                  _revenuePage
+                return _buildInfoCardContent(
+                  title: "Vacant Units",
+                  value: "$vacantUnits",
+                  icon: Icons.meeting_room_outlined,
+                  color: Colors.redAccent,
+                  pageIndex: _unitsPage,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VacantUnitsPage())),
                 );
               }
             },
@@ -802,9 +756,65 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildRevenueItem(String title, String value, Color color, int pageIndex) {
+  Widget _buildInfoCardContent({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required int pageIndex,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ExpensesPage())), // ✅ Navigates to Expenses if it's the expenses card
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0), 
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, 
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8), 
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                Row(
+                  children: [
+                    _buildDot(pageIndex % 2 == 0),
+                    const SizedBox(width: 4),
+                    _buildDot(pageIndex % 2 == 1),
+                  ],
+                ),
+              ],
+            ),
+            const Spacer(),
+            FittedBox( 
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRevenueItem(String title, String value, Color color, int pageIndex, {bool isFourSlides = false, VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap ?? () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage())),
       child: Padding(
         padding: const EdgeInsets.all(16.0), 
         child: Column(
@@ -823,7 +833,15 @@ class _HomePageState extends State<HomePage> {
                   child: Icon(Icons.attach_money, color: color, size: 20),
                 ),
                 Row(
-                  children: [
+                  children: isFourSlides ? [
+                    _buildDot(pageIndex % 4 == 0),
+                    const SizedBox(width: 4),
+                    _buildDot(pageIndex % 4 == 1),
+                    const SizedBox(width: 4),
+                    _buildDot(pageIndex % 4 == 2),
+                    const SizedBox(width: 4),
+                    _buildDot(pageIndex % 4 == 3),
+                  ] : [
                     _buildDot(pageIndex % 2 == 0),
                     const SizedBox(width: 4),
                     _buildDot(pageIndex % 2 == 1),
@@ -956,9 +974,31 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Cash Flow (Income vs Expenses)", 
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            // Title Row: Text + "Reset" Button (optional/implicit)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // ✅ Clickable Title
+                InkWell(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MonthlyPaymentsPage(initialMonth: DateTime.now()))),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Cash Flow (Income vs Expenses)", 
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_forward, size: 16, color: Theme.of(context).colorScheme.primary),
+                    ],
+                  ),
+                ),
+                if (_touchedIndex != -1)
+                  GestureDetector(
+                    onTap: () => setState(() => _touchedIndex = -1),
+                    child: Text("Clear Selection", style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
+                  )
+              ],
             ),
             const SizedBox(height: 24),
             SizedBox( 
@@ -966,14 +1006,17 @@ class _HomePageState extends State<HomePage> {
               child: BarChart(
                 BarChartData(
                   barTouchData: BarTouchData(
-                    longPressDuration: const Duration(milliseconds: 1500), 
+                    enabled: true,
+                    longPressDuration: const Duration(milliseconds: 500), // Shorter long press for testing
                     touchTooltipData: BarTouchTooltipData(
                       tooltipBgColor: Theme.of(context).colorScheme.primary,
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         final type = rodIndex == 0 ? 'Income' : 'Expense';
                         final amount = currency.format(rod.toY);
+                        // ✅ Show "Tap again to open" if selected
+                        final hint = _touchedIndex == groupIndex ? '\n(Tap again to open)' : '';
                         return BarTooltipItem(
-                          '$type\n$amount',
+                          '$type\n$amount$hint',
                           TextStyle(
                             color: Theme.of(context).colorScheme.onPrimary,
                             fontWeight: FontWeight.bold,
@@ -985,20 +1028,33 @@ class _HomePageState extends State<HomePage> {
                       if (!event.isInterestedForInteractions ||
                           barTouchResponse == null ||
                           barTouchResponse.spot == null) {
+                        // If user taps outside, maybe reset?
+                        if (event is FlTapUpEvent && _touchedIndex != -1) {
+                           setState(() => _touchedIndex = -1);
+                        }
                         return;
                       }
                       
-                      if (event is FlTapUpEvent || event is FlLongPressEnd) { 
+                      if (event is FlTapUpEvent) { 
                         final index = barTouchResponse.spot!.touchedBarGroupIndex;
-                        final now = DateTime.now();
-                        final targetMonth = DateTime(now.year, now.month - 11 + index, 1);
                         
-                        Navigator.push(
-                          context, 
-                          MaterialPageRoute(
-                            builder: (_) => MonthlyPaymentsPage(initialMonth: targetMonth)
-                          )
-                        );
+                        if (_touchedIndex == index) {
+                          // ✅ Second Tap: Navigate
+                          final now = DateTime.now();
+                          final targetMonth = DateTime(now.year, now.month - 11 + index, 1);
+                          
+                          Navigator.push(
+                            context, 
+                            MaterialPageRoute(
+                              builder: (_) => MonthlyPaymentsPage(initialMonth: targetMonth)
+                            )
+                          );
+                          // Reset after nav
+                          setState(() => _touchedIndex = -1);
+                        } else {
+                          // ✅ First Tap: Select (Show Tooltip)
+                          setState(() => _touchedIndex = index);
+                        }
                       }
                     },
                   ),
@@ -1012,6 +1068,11 @@ class _HomePageState extends State<HomePage> {
                         interval: 1, 
                         getTitlesWidget: (double value, TitleMeta meta) {
                           TextStyle style = Theme.of(context).textTheme.bodySmall!;
+                          // Highlight selected label
+                          if (value.toInt() == _touchedIndex) {
+                            style = style.copyWith(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold);
+                          }
+
                           if (value.toInt() >= 0 && value.toInt() < monthLabels.length) {
                              return SideTitleWidget(
                               axisSide: meta.axisSide,
@@ -1044,27 +1105,34 @@ class _HomePageState extends State<HomePage> {
                   getDrawingHorizontalLine: (value) => FlLine(color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1), strokeWidth: 1), 
                   ),
                   barGroups: List.generate(12, (index) {
+                    // Highlight selected bar
+                    final isSelected = index == _touchedIndex;
+                    
                     return BarChartGroupData(
                       x: index,
                       barsSpace: 4, 
+                      showingTooltipIndicators: isSelected ? [0, 1] : [], // ✅ Keep tooltip showing if selected
                       barRods: [
+                        // 1. Income Bar
                         BarChartRodData(
                           toY: monthlyRevenue[index],
                           gradient: LinearGradient(
                             colors: [
-                              Theme.of(context).colorScheme.primary,
-                              Theme.of(context).colorScheme.primaryContainer,
+                              Theme.of(context).colorScheme.primary.withOpacity(isSelected ? 1.0 : 0.7),
+                              Theme.of(context).colorScheme.primaryContainer.withOpacity(isSelected ? 1.0 : 0.7),
                             ],
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                           ),
-                          width: 8, 
+                          width: 8, // ✅ Thin bars (reverted from 16)
                           borderRadius: BorderRadius.circular(2),
+                          borderSide: isSelected ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2) : BorderSide.none, // Highlight border
                         ),
+                        // 2. Expense Bar
                         BarChartRodData(
                           toY: monthlyExpenses[index],
-                          color: Theme.of(context).colorScheme.error.withOpacity(0.8),
-                          width: 8, 
+                          color: Theme.of(context).colorScheme.error.withOpacity(isSelected ? 1.0 : 0.6),
+                          width: 8, // ✅ Thin bars (reverted from 16)
                           borderRadius: BorderRadius.circular(2),
                         )
                       ],
@@ -1072,77 +1140,6 @@ class _HomePageState extends State<HomePage> {
                   }),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOccupancyChart() {
-    if (occupiedUnits == 0 && vacantUnits == 0) {
-      return Card(
-        child: const Padding(
-          padding: EdgeInsets.all(20),
-          child: Center(child: Text("No Unit Data Available")),
-        ),
-      );
-    }
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Theme.of(context).colorScheme.outline.withOpacity(0.2), width: 1),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Occupancy Rate",
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
-            AspectRatio(
-              aspectRatio: 1.3,
-              child: PieChart(
-                PieChartData(
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 40,
-                  sections: [
-                    PieChartSectionData(
-                      gradient: LinearGradient(
-                        colors: [
-                          Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.primaryContainer,
-                        ],
-                      ),
-                      value: occupiedUnits.toDouble(),
-                      title: '$occupiedUnits',
-                      radius: 50,
-                      titleStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    PieChartSectionData(
-                      color: Theme.of(context).colorScheme.error,
-                      value: vacantUnits.toDouble(),
-                      title: '$vacantUnits',
-                      radius: 50,
-                      titleStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onError),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildLegend(color: Theme.of(context).colorScheme.primary, text: "Occupied"), 
-                const SizedBox(width: 16),
-                _buildLegend(color: Theme.of(context).colorScheme.error, text: "Vacant"), 
-              ],
             ),
           ],
         ),
@@ -1189,9 +1186,9 @@ class _HomePageState extends State<HomePage> {
           UserAccountsDrawerHeader(
             accountName: const Text(
               "Leverizaland Inc.",
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22), // ✅ Bigger Font
             ),
-            accountEmail: const Text("admin@leverizaland.com"),
+            accountEmail: const SizedBox.shrink(), // ✅ Removed Email
             currentAccountPicture: CircleAvatar(
               backgroundColor: Colors.white,
               child: Text(
@@ -1284,21 +1281,9 @@ class _HomePageState extends State<HomePage> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage())); 
             },
           ),
-          ListTile(
-            enabled: false,
-            leading: const Icon(Icons.logout),
-            title: const Text('Logout'),
-            subtitle: const Text('User accounts coming soon'),
-            onTap: () {},
-          ),
+          // ✅ Removed Logout Button
           const SizedBox(height: 20),
-          const Padding(
-            padding: EdgeInsets.only(left: 16.0),
-            child: Text(
-              "v0.2 MVP",
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-          ),
+          // ✅ Removed Version Number Footer
         ],
       ),
     );

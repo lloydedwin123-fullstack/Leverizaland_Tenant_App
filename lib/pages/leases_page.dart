@@ -140,6 +140,12 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
     return '$b $n'.toLowerCase();
   }
 
+  double get _totalActiveRent {
+    return allLeases
+        .where((l) => l['status'] == 'Active')
+        .fold(0.0, (sum, l) => sum + (l['rent_amount'] as num? ?? 0).toDouble());
+  }
+
   void _onSearch(String val) {
     searchQuery = val;
     _applyFiltersAndSort();
@@ -218,6 +224,17 @@ class _LeasesPageState extends State<LeasesPage> with SingleTickerProviderStateM
                     ),
                   ),
                 ),
+                if (_tabController.index == 0)
+                  Container(
+                    width: double.infinity,
+                    color: Colors.grey[200],
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      'Total Monthly Rent (Active): ${currency.format(_totalActiveRent)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 Expanded(
                   child: filteredLeases.isEmpty
                       ? const Center(child: Text("No contracts found."))

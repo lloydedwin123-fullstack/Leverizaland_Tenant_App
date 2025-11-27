@@ -10,7 +10,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // bool _notifications = true; // Kept for UI state, but disabled
 
   @override
   Widget build(BuildContext context) {
@@ -54,25 +53,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 selectedBackgroundColor: Theme.of(context).colorScheme.primary,
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Divider(),
-          const Text("Notifications", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
-          SwitchListTile(
-            title: const Text("Enable Notifications"),
-            subtitle: const Text("Feature coming soon"), // ✅ Added subtitle
-            value: false, // Visually off
-            onChanged: null, // ✅ Disabled
-          ),
-          const Divider(),
-          const Text("About", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
-          const ListTile(
-            title: Text("Version"),
-            trailing: Text("2.6 MVP"),
-          ),
-          const ListTile(
-            title: Text("Developer"),
-            trailing: Text("Leverizaland Software Devt."),
           ),
         ],
       ),

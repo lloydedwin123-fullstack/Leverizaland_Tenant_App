@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'add_expense_page.dart';
-import 'expense_details_page.dart'; // ✅ Import Details Page
+import 'expense_details_page.dart'; 
 
 class ExpensesPage extends StatefulWidget {
   const ExpensesPage({super.key});
@@ -16,7 +16,8 @@ class _ExpensesPageState extends State<ExpensesPage> {
   late DateTime currentMonth;
   bool isLoading = true;
   List<Map<String, dynamic>> expenses = [];
-  double totalExpenses = 0.0;
+  double totalExpensesMonth = 0.0;
+  double totalExpensesOverall = 0.0; // ✅ Renamed for clarity
 
   final currency = NumberFormat.currency(locale: 'en_PH', symbol: '₱', decimalDigits: 2);
   final dateFmt = DateFormat('MMM d, yyyy');
@@ -38,23 +39,34 @@ class _ExpensesPageState extends State<ExpensesPage> {
       final startStr = DateFormat('yyyy-MM-dd').format(startOfMonth);
       final endStr = DateFormat('yyyy-MM-dd').format(startOfNextMonth);
 
-      // Fetch expenses for this month
-      final response = await supabase
+      // 1. Fetch expenses for this month
+      final responseMonth = await supabase
           .from('expenses')
-          .select('*, units(building, unit_number)') // ✅ Join units for display if needed
+          .select('*, units(building, unit_number)') 
           .gte('date', startStr)
           .lt('date', endStr)
           .order('date', ascending: false);
 
-      double sum = 0.0;
-      for (var e in response) {
-        sum += (e['amount'] ?? 0.0) as num;
+      double sumMonth = 0.0;
+      for (var e in responseMonth) {
+        sumMonth += (e['amount'] ?? 0.0) as num;
+      }
+
+      // 2. Fetch Overall Total
+      final responseOverall = await supabase
+          .from('expenses')
+          .select('amount');
+
+      double sumOverall = 0.0;
+      for (var e in responseOverall) {
+        sumOverall += (e['amount'] ?? 0.0) as num;
       }
 
       if (mounted) {
         setState(() {
-          expenses = List<Map<String, dynamic>>.from(response);
-          totalExpenses = sum;
+          expenses = List<Map<String, dynamic>>.from(responseMonth);
+          totalExpensesMonth = sumMonth;
+          totalExpensesOverall = sumOverall;
           isLoading = false;
         });
       }
@@ -94,7 +106,7 @@ class _ExpensesPageState extends State<ExpensesPage> {
         children: [
           // Summary Header
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
               border: Border(bottom: BorderSide(color: Theme.of(context).dividerColor)),
@@ -120,11 +132,11 @@ class _ExpensesPageState extends State<ExpensesPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          currency.format(totalExpenses),
+                          currency.format(totalExpensesMonth),
                           style: TextStyle(
-                            fontSize: 26,
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.error, // Red for expenses
+                            color: Theme.of(context).colorScheme.error, 
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -139,6 +151,32 @@ class _ExpensesPageState extends State<ExpensesPage> {
                       onPressed: () => _changeMonth(1),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+                
+                // ✅ Overall Indicator
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Theme.of(context).colorScheme.error.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.trending_up, size: 14, color: Theme.of(context).colorScheme.error),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Total Expenses: ${currency.format(totalExpensesOverall)}", // ✅ Updated Label
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -183,12 +221,10 @@ class _ExpensesPageState extends State<ExpensesPage> {
                                 ),
                               ),
                               onTap: () async {
-                                // ✅ Navigate to Details Page
                                 final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (_) => ExpenseDetailsPage(expense: e)),
                                 );
-                                // Refresh if deleted
                                 if (result == true) fetchExpenses();
                               },
                             ),
